@@ -1,0 +1,48 @@
+venv/
+venv\
+.venv/
+.venv\
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Streamlit local config
+.streamlit/
+.streamlit\
+
+# Python cache and bytecode
+__pycache__/
+__pycache__\
+*.pyc
+*.pyo
+*.pyd
+*.py[cod]
+
+# Packaging/build artifacts
+build/
+dist/
+*.egg-info/
+
+# Test & tool caches
+.pytest_cache/
+.pytest_cache\
+.cache/
+.cache\
+
+# IDE/editor settings
+.vscode/
+.vscode\
+.idea/
+.idea\
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local data/output (project-specific)
+business_model.csv
+change_history.json
+data/
+data\
