@@ -1,8 +1,7 @@
 """
 Enhanced Pydantic models for the Agentic AI Actions Co-pilot system.
-
-This module defines comprehensive data structures for business model canvas management,
-action outcomes, AI agent recommendations, chat interfaces, and analytics.
+Streamlined for Seedstars assignment focusing on core business model canvas management,
+action outcomes, AI agent recommendations, and version control.
 """
 
 from datetime import datetime, timedelta
@@ -11,8 +10,10 @@ from typing import Dict, List, Optional, Any, Union
 from uuid import uuid4
 import re
 
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, validator
 
+
+# ==================== CORE ENUMS ====================
 
 class ActionOutcome(str, Enum):
     """Enumeration of possible action outcomes."""
@@ -43,33 +44,16 @@ class AgentStatus(str, Enum):
     FAILED = "failed"
 
 
-class MessageRole(str, Enum):
-    """Chat message roles for conversation tracking."""
-    USER = "user"
-    ASSISTANT = "assistant"
-    SYSTEM = "system"
-    AGENT = "agent"
-
-
-class MessageType(str, Enum):
-    """Types of chat messages for better categorization."""
-    TEXT = "text"
-    ACTION_COMPLETION = "action_completion"
-    ANALYSIS_RESULT = "analysis_result"
-    CHANGE_PROPOSAL = "change_proposal"
-    CHANGE_APPLIED = "change_applied"
-    STATUS_UPDATE = "status_update"
-    ERROR = "error"
-
+# ==================== CORE BUSINESS MODELS ====================
 
 class CompletedAction(BaseModel):
     """Model representing a completed business action with its outcomes."""
 
     id: str = Field(default_factory=lambda: str(uuid4()), description="Unique identifier for the action")
-    title: str = Field(..., min_length=5, max_length=200, description="Descriptive name of the action")
+    title: str = Field(..., min_length=3, max_length=200, description="Descriptive name of the action")
     description: str = Field(..., min_length=10, description="Detailed explanation of what was done")
     outcome: ActionOutcome = Field(..., description="The result outcome of the action")
-    results_data: str = Field(..., min_length=20, description="Detailed results and metrics from the action")
+    results_data: str = Field(..., min_length=10, description="Detailed results and metrics from the action")
     completion_date: datetime = Field(default_factory=datetime.now, description="When the action was completed")
     success_metrics: Optional[Dict[str, Any]] = Field(None, description="Quantitative metrics related to success")
     action_category: Optional[str] = Field(None, description="Category of action (e.g., 'Market Research', 'Product Test')")
@@ -85,19 +69,19 @@ class CompletedAction(BaseModel):
         schema_extra = {
             "example": {
                 "id": "act_123456789",
-                "title": "Market Validation Survey - Lagos Region",
-                "description": "Conducted comprehensive market validation survey with 500 potential customers across Lagos to understand payment preferences and pricing sensitivity",
+                "title": "Customer Survey - Lagos Market",
+                "description": "Conducted survey with 200 potential customers in Lagos to understand payment preferences and pricing sensitivity",
                 "outcome": "successful",
-                "results_data": "Survey achieved 87% response rate with key findings: 67% prefer mobile payments, 45% willing to pay 2% transaction fee, strong preference for local language support",
+                "results_data": "Survey achieved 85% response rate with key findings: 72% prefer mobile payments, 58% willing to pay 2% transaction fee",
                 "success_metrics": {
-                    "response_rate": 0.87,
-                    "sample_size": 500,
+                    "response_rate": 0.85,
+                    "sample_size": 200,
                     "confidence_level": 0.95
                 },
                 "action_category": "Market Research",
-                "stakeholders_involved": ["Research Team", "Local Partners", "Customer Support"],
-                "budget_spent": 25000.0,
-                "duration_days": 21
+                "stakeholders_involved": ["Research Team", "Local Partners"],
+                "budget_spent": 15000.0,
+                "duration_days": 14
             }
         }
 
@@ -111,8 +95,8 @@ class CompletedAction(BaseModel):
     @validator('results_data')
     def validate_results_data(cls, v):
         """Validate results data contains substantial information."""
-        if len(v.strip()) < 50:
-            raise ValueError('Results data must contain at least 50 characters of meaningful content')
+        if len(v.strip()) < 20:
+            raise ValueError('Results data must contain at least 20 characters of meaningful content')
         return v.strip()
 
     def get_action_summary(self) -> str:
@@ -240,24 +224,49 @@ class BusinessModelCanvas(BaseModel):
         empty_sections = len(self.get_empty_sections())
         return (9 - empty_sections) / 9.0
 
+    def get_section_quality_score(self, section_name: str) -> float:
+        """Get quality score for a specific section based on content."""
+        values = getattr(self, section_name, [])
+        if not values:
+            return 0.0
+
+        # Base score from having content
+        quality_score = 0.3
+        
+        # Length quality
+        avg_length = sum(len(item) for item in values) / len(values)
+        if avg_length > 20:
+            quality_score += 0.3
+        if avg_length > 50:
+            quality_score += 0.2
+
+        # Content quality - avoid generic terms
+        generic_terms = {'tbd', 'to be determined', 'placeholder', 'example', 'test'}
+        non_generic = sum(1 for item in values if item.lower().strip() not in generic_terms)
+        quality_score += (non_generic / len(values)) * 0.2
+
+        return min(quality_score, 1.0)
+
     def validate_integrity(self) -> List[str]:
         """Validate BMC integrity and return list of issues."""
         issues = []
         
         # Check for empty sections
         empty_sections = self.get_empty_sections()
-        if empty_sections:
-            issues.append(f"Empty sections: {', '.join(empty_sections)}")
+        if len(empty_sections) > 3:  # More than 3 empty sections is concerning
+            issues.append(f"Multiple empty sections: {', '.join(empty_sections)}")
         
         # Check for very short descriptions
         all_items = []
-        for section in ['customer_segments', 'value_propositions', 'channels', 'customer_relationships',
-                       'revenue_streams', 'key_resources', 'key_activities', 'key_partnerships', 'cost_structure']:
+        sections = ['customer_segments', 'value_propositions', 'channels', 'customer_relationships',
+                   'revenue_streams', 'key_resources', 'key_activities', 'key_partnerships', 'cost_structure']
+        
+        for section in sections:
             all_items.extend(getattr(self, section, []))
         
         short_items = [item for item in all_items if len(item.strip()) < 10]
-        if short_items:
-            issues.append(f"{len(short_items)} items are too short (< 10 characters)")
+        if len(short_items) > len(all_items) * 0.3:  # More than 30% short items
+            issues.append(f"Many items are too brief (< 10 characters): {len(short_items)} items")
         
         # Check for placeholder content
         placeholder_patterns = ['tbd', 'to be determined', 'placeholder', 'example', 'test', 'todo']
@@ -269,64 +278,6 @@ class BusinessModelCanvas(BaseModel):
         return issues
 
 
-class ValuePropositionCanvas(BaseModel):
-    """Model representing a Value Proposition Canvas."""
-
-    # Customer side
-    jobs_to_be_done: List[str] = Field(
-        default_factory=list,
-        description="Tasks customers are trying to perform, problems they're solving"
-    )
-    pains: List[str] = Field(
-        default_factory=list,
-        description="Bad outcomes, risks, and obstacles related to customer jobs"
-    )
-    gains: List[str] = Field(
-        default_factory=list,
-        description="Benefits customers want, expect, desire or would be surprised by"
-    )
-
-    # Company side
-    products_services: List[str] = Field(
-        default_factory=list,
-        description="List of products and services the value proposition is built around"
-    )
-    pain_relievers: List[str] = Field(
-        default_factory=list,
-        description="How products/services alleviate customer pains"
-    )
-    gain_creators: List[str] = Field(
-        default_factory=list,
-        description="How products/services create customer gains"
-    )
-
-    last_updated: datetime = Field(
-        default_factory=datetime.now,
-        description="Timestamp of last modification"
-    )
-    linked_bmc_version: Optional[str] = Field(None, description="Version of BMC this VPC is linked to")
-
-    class Config:
-        """Pydantic configuration."""
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
-
-    def get_customer_profile_completeness(self) -> float:
-        """Get completeness score for customer profile (jobs, pains, gains)."""
-        total_sections = 3
-        filled_sections = sum(1 for section in [self.jobs_to_be_done, self.pains, self.gains] 
-                            if len(section) > 0)
-        return filled_sections / total_sections
-
-    def get_value_map_completeness(self) -> float:
-        """Get completeness score for value map (products, pain relievers, gain creators)."""
-        total_sections = 3
-        filled_sections = sum(1 for section in [self.products_services, self.pain_relievers, self.gain_creators] 
-                            if len(section) > 0)
-        return filled_sections / total_sections
-
-
 class ProposedChange(BaseModel):
     """Model representing a proposed change to a business model canvas."""
 
@@ -335,7 +286,7 @@ class ProposedChange(BaseModel):
     change_type: ChangeType = Field(..., description="Type of change to make")
     current_value: Optional[str] = Field(None, description="Current value being changed (if applicable)")
     proposed_value: str = Field(..., description="New value to add or modify to")
-    reasoning: str = Field(..., min_length=20, description="AI explanation for why this change is recommended")
+    reasoning: str = Field(..., min_length=15, description="AI explanation for why this change is recommended")
     confidence_score: float = Field(
         ...,
         ge=0.0,
@@ -363,16 +314,12 @@ class ProposedChange(BaseModel):
     @validator('reasoning')
     def validate_reasoning_quality(cls, v):
         """Validate reasoning contains substantial explanation."""
-        if len(v.strip()) < 20:
-            raise ValueError("Reasoning must contain at least 20 characters")
+        if len(v.strip()) < 15:
+            raise ValueError("Reasoning must contain at least 15 characters")
         
-        # Check for evidence-based language
-        evidence_indicators = ['data shows', 'research indicates', 'analysis suggests', 'evidence', 'based on']
+        # Check for evidence-based language indicators
+        evidence_indicators = ['data shows', 'research indicates', 'analysis suggests', 'evidence', 'based on', 'results show']
         has_evidence = any(indicator in v.lower() for indicator in evidence_indicators)
-        
-        if not has_evidence:
-            # Still valid but note the lack of evidence-based language
-            pass
         
         return v.strip()
 
@@ -382,7 +329,7 @@ class ProposedChange(BaseModel):
         if v < 0.1:
             raise ValueError("Confidence score too low - minimum 0.1 for any recommendation")
         if v > 0.99:
-            raise ValueError("Confidence score too high - maximum 0.99 for any prediction")
+            raise ValueError("Confidence score too high - maximum 0.99 to maintain humility")
         return v
 
     def get_confidence_category(self) -> ConfidenceLevel:
@@ -397,21 +344,25 @@ class ProposedChange(BaseModel):
     def is_safe_for_auto_application(self) -> bool:
         """Determine if this change is safe for automatic application."""
         # High confidence threshold for auto-application
-        if self.confidence_score < 0.75:
+        if self.confidence_score < 0.8:
             return False
         
-        # No removal operations in auto-mode
+        # No removal operations in auto-mode (too risky)
         if self.change_type == ChangeType.REMOVE:
             return False
         
-        # Critical sections need higher confidence
-        critical_sections = {'revenue_streams', 'cost_structure', 'key_partnerships'}
-        if self.canvas_section in critical_sections and self.confidence_score < 0.85:
+        # Critical financial sections need manual approval
+        critical_sections = {'revenue_streams', 'cost_structure'}
+        if self.canvas_section in critical_sections:
             return False
         
-        # Check for high-risk factors
-        high_risk_indicators = ['major', 'significant', 'fundamental', 'critical', 'breaking']
+        # Check for high-risk indicators in reasoning
+        high_risk_indicators = ['major', 'significant', 'fundamental', 'critical', 'breaking', 'removing']
         if any(indicator in self.reasoning.lower() for indicator in high_risk_indicators):
+            return False
+        
+        # Check proposed value quality
+        if not self.proposed_value.strip() or len(self.proposed_value.strip()) < 10:
             return False
         
         return True
@@ -433,6 +384,12 @@ class ProposedChange(BaseModel):
         
         return "low"
 
+    def get_change_hash(self) -> str:
+        """Get unique hash for this change to detect duplicates."""
+        import hashlib
+        change_string = f"{self.canvas_section}_{self.change_type.value}_{self.proposed_value}"
+        return hashlib.md5(change_string.encode()).hexdigest()
+
 
 class AgentRecommendation(BaseModel):
     """Model representing the complete recommendation from the agentic system."""
@@ -453,9 +410,8 @@ class AgentRecommendation(BaseModel):
         description="When these recommendations were generated"
     )
     processing_time_ms: Optional[int] = Field(None, description="Time taken to generate recommendations in milliseconds")
-    model_version: str = Field(default="1.0.0", description="Version of the AI model used")
+    model_version: str = Field(default="gemini-1.5-flash", description="Version of the AI model used")
     source_action_id: Optional[str] = Field(None, description="ID of the action that triggered these recommendations")
-    market_context: Optional[Dict[str, Any]] = Field(None, description="Market context considered during analysis")
     risk_assessment: Optional[str] = Field("medium", description="Overall risk assessment: low, medium, high")
     implementation_priority: Optional[str] = Field("medium", description="Suggested implementation priority")
 
@@ -501,12 +457,16 @@ class AgentRecommendation(BaseModel):
         
         if change_count == 0:
             return "No implementation needed"
-        elif change_count <= 3 and high_impact_count == 0:
+        elif change_count <= 2 and high_impact_count == 0:
             return "1-2 weeks"
-        elif change_count <= 6 and high_impact_count <= 2:
-            return "3-4 weeks"
+        elif change_count <= 4 and high_impact_count <= 1:
+            return "2-3 weeks"
         else:
-            return "1-2 months with phased approach"
+            return "1 month with phased approach"
+
+    def has_auto_applicable_changes(self) -> bool:
+        """Check if there are any changes safe for auto-application."""
+        return len(self.get_safe_auto_changes()) > 0
 
 
 class ChangeHistory(BaseModel):
@@ -521,7 +481,6 @@ class ChangeHistory(BaseModel):
     auto_applied: bool = Field(False, description="Whether changes were applied automatically")
     applied_by: Optional[str] = Field(None, description="User or system that applied these changes")
     rollback_data: Optional[Dict[str, Any]] = Field(None, description="Data needed to rollback these changes")
-    success_metrics: Optional[Dict[str, Any]] = Field(None, description="Metrics to track success of these changes")
     notes: Optional[str] = Field(None, description="Additional notes about the change")
 
     class Config:
@@ -551,7 +510,15 @@ class ChangeHistory(BaseModel):
 
     def can_rollback(self) -> bool:
         """Check if these changes can be rolled back."""
-        return self.rollback_data is not None and bool(self.rollback_data)
+        return bool(self.previous_state_snapshot)
+
+    def get_rollback_summary(self) -> str:
+        """Get summary for rollback confirmation."""
+        change_count = len(self.changes_applied)
+        timestamp = self.timestamp.strftime("%H:%M:%S")
+        mode = "Auto" if self.auto_applied else "Manual"
+        
+        return f"Rollback {change_count} {mode.lower()} change(s) from {timestamp}?"
 
 
 class ProcessingStatus(BaseModel):
@@ -568,8 +535,6 @@ class ProcessingStatus(BaseModel):
     error_message: Optional[str] = Field(None)
     current_agent: Optional[str] = Field(None, description="Currently active agent")
     progress_percentage: float = Field(default=0.0, ge=0.0, le=100.0, description="Overall progress percentage")
-    estimated_completion_time: Optional[datetime] = Field(None, description="Estimated completion time")
-    agent_outputs: Dict[str, Any] = Field(default_factory=dict, description="Outputs from each agent")
 
     class Config:
         """Pydantic configuration."""
@@ -660,18 +625,16 @@ class ProcessingStatus(BaseModel):
             return datetime.now() - self.started_at
 
 
+# ==================== SIMPLIFIED CHAT MODELS ====================
+
 class ChatMessage(BaseModel):
-    """Model for chat messages in the conversation interface."""
+    """Simplified model for chat messages in the conversation interface."""
 
     id: str = Field(default_factory=lambda: str(uuid4()), description="Unique message identifier")
-    role: MessageRole = Field(..., description="Role of the message sender")
+    role: str = Field(..., description="Role of the message sender: user, assistant, system")
     content: str = Field(..., min_length=1, description="Message content")
-    message_type: MessageType = Field(default=MessageType.TEXT, description="Type of message")
     timestamp: datetime = Field(default_factory=datetime.now, description="When the message was created")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional message metadata")
-    parent_message_id: Optional[str] = Field(None, description="ID of parent message for threading")
-    edited: bool = Field(default=False, description="Whether this message has been edited")
-    reactions: Dict[str, int] = Field(default_factory=dict, description="Message reactions (emoji: count)")
 
     class Config:
         """Pydantic configuration."""
@@ -693,45 +656,19 @@ class ChatMessage(BaseModel):
         else:
             return "Just now"
 
-    def add_reaction(self, emoji: str) -> None:
-        """Add a reaction to this message."""
-        if emoji in self.reactions:
-            self.reactions[emoji] += 1
-        else:
-            self.reactions[emoji] = 1
 
-    def remove_reaction(self, emoji: str) -> bool:
-        """Remove a reaction from this message."""
-        if emoji in self.reactions and self.reactions[emoji] > 0:
-            self.reactions[emoji] -= 1
-            if self.reactions[emoji] == 0:
-                del self.reactions[emoji]
-            return True
-        return False
+# ==================== ANALYTICS AND REPORTING ====================
 
+class AnalyticsSummary(BaseModel):
+    """Simplified analytics model for tracking system usage and performance."""
 
-class UserProfile(BaseModel):
-    """Model for user profile information to provide context to AI agents."""
-
-    id: str = Field(default_factory=lambda: str(uuid4()), description="Unique user identifier")
-    name: str = Field(..., description="User's full name")
-    email: str = Field(..., description="User's email address")
-    company: Optional[str] = Field(None, description="Company name")
-    role: Optional[str] = Field(None, description="User's role or position")
-    country: Optional[str] = Field(None, description="Country of residence")
-    industry: Optional[str] = Field(None, description="Industry sector")
-    business_stage: Optional[str] = Field(None, description="Stage of business (idea, startup, growth, etc.)")
-    target_market: Optional[str] = Field(None, description="Primary target market")
-    preferences: Dict[str, Any] = Field(default_factory=dict, description="User preferences and settings")
-    created_at: datetime = Field(default_factory=datetime.now, description="When the profile was created")
-    last_active: datetime = Field(default_factory=datetime.now, description="Last activity timestamp")
-
-    @validator('email')
-    def validate_email(cls, v):
-        """Basic email validation."""
-        if '@' not in v or '.' not in v.split('@')[-1]:
-            raise ValueError('Invalid email format')
-        return v.lower()
+    total_actions_processed: int = Field(default=0, description="Total number of actions processed")
+    total_changes_applied: int = Field(default=0, description="Total number of changes applied")
+    auto_mode_usage_rate: float = Field(default=0.0, description="Percentage of changes applied via auto-mode")
+    average_confidence_score: float = Field(default=0.0, description="Average confidence score of recommendations")
+    most_updated_sections: List[str] = Field(default_factory=list, description="BMC sections updated most frequently")
+    success_rate: float = Field(default=0.0, description="Percentage of successful processing attempts")
+    generated_at: datetime = Field(default_factory=datetime.now, description="When these analytics were generated")
 
     class Config:
         """Pydantic configuration."""
@@ -739,70 +676,50 @@ class UserProfile(BaseModel):
             datetime: lambda v: v.isoformat()
         }
 
-    def get_context_for_ai(self) -> Dict[str, Any]:
-        """Get context information for AI agents."""
-        return {
-            "company": self.company,
-            "role": self.role,
-            "country": self.country,
-            "industry": self.industry,
-            "business_stage": self.business_stage,
-            "target_market": self.target_market,
-            "preferences": self.preferences
-        }
 
-    def update_last_active(self) -> None:
-        """Update the last active timestamp."""
-        self.last_active = datetime.now()
+# ==================== VALIDATION UTILITIES ====================
 
-
-class AnalyticsReport(BaseModel):
-    """Model for analytics and reporting data."""
-
-    id: str = Field(default_factory=lambda: str(uuid4()), description="Unique report identifier")
-    report_type: str = Field(..., description="Type of analytics report")
-    generated_at: datetime = Field(default_factory=datetime.now, description="When the report was generated")
-    period_start: datetime = Field(..., description="Start of reporting period")
-    period_end: datetime = Field(..., description="End of reporting period")
-    data: Dict[str, Any] = Field(..., description="Report data and metrics")
-    summary: str = Field(..., description="Executive summary of the report")
-    recommendations: List[str] = Field(default_factory=list, description="Actionable recommendations")
-    generated_by: str = Field(default="system", description="Who or what generated this report")
-
-    class Config:
-        """Pydantic configuration."""
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
-
-    def get_key_metrics(self) -> Dict[str, Any]:
-        """Extract key metrics from the report data."""
-        key_metrics = {}
-        
-        if 'total_changes' in self.data:
-            key_metrics['total_changes'] = self.data['total_changes']
-        
-        if 'auto_applied_ratio' in self.data:
-            key_metrics['automation_rate'] = f"{self.data['auto_applied_ratio']:.1%}"
-        
-        if 'average_confidence' in self.data:
-            key_metrics['avg_confidence'] = f"{self.data['average_confidence']:.1%}"
-        
-        return key_metrics
+def validate_bmc_change_compatibility(change: ProposedChange, current_bmc: BusinessModelCanvas) -> List[str]:
+    """Validate that a proposed change is compatible with current BMC state."""
+    issues = []
+    
+    # Check if section exists
+    if not hasattr(current_bmc, change.canvas_section):
+        issues.append(f"Invalid section: {change.canvas_section}")
+        return issues
+    
+    current_values = getattr(current_bmc, change.canvas_section, [])
+    
+    # Check MODIFY and REMOVE operations have valid current_value
+    if change.change_type in [ChangeType.MODIFY, ChangeType.REMOVE]:
+        if not change.current_value:
+            issues.append("MODIFY/REMOVE operations require current_value")
+        elif change.current_value not in current_values:
+            issues.append(f"Current value '{change.current_value}' not found in {change.canvas_section}")
+    
+    # Check for duplicate ADD operations
+    if change.change_type == ChangeType.ADD:
+        if change.proposed_value in current_values:
+            issues.append(f"Value '{change.proposed_value}' already exists in {change.canvas_section}")
+    
+    return issues
 
 
 # Export all models for easy importing
 __all__ = [
     # Enums
-    'ActionOutcome', 'ChangeType', 'ConfidenceLevel', 'AgentStatus', 'MessageRole', 'MessageType',
+    'ActionOutcome', 'ChangeType', 'ConfidenceLevel', 'AgentStatus',
     
     # Core Business Models
-    'CompletedAction', 'BusinessModelCanvas', 'ValuePropositionCanvas', 'ProposedChange',
+    'CompletedAction', 'BusinessModelCanvas', 'ProposedChange',
     'AgentRecommendation', 'ChangeHistory', 'ProcessingStatus',
     
-    # Chat and User Models
-    'ChatMessage', 'UserProfile',
+    # Chat and Interface Models
+    'ChatMessage',
     
     # Analytics Models
-    'AnalyticsReport'
+    'AnalyticsSummary',
+    
+    # Utility Functions
+    'validate_bmc_change_compatibility'
 ]
