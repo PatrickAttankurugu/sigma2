@@ -1,17 +1,17 @@
 """
-Seedstars Assignment: Agentic AI Actions Co-pilot
-Clean, focused demo of 4-agent workflow for business model canvas updates
+Agentic AI Actions Co-pilot
+Multi-agent workflow for intelligent business model canvas updates
 """
 
 import asyncio
 import os
+import time
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 
 import streamlit as st
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
 from business_models import (
@@ -37,18 +37,50 @@ from utils import (
     save_change_history,
     load_change_history,
     format_proposed_changes,
-    generate_change_hash
+    generate_action_hash
 )
 
-# Page Configuration
+def apply_changes(changes: List[ProposedChange], auto_applied: bool = False):
+    """Apply changes to business model with history tracking"""
+    old_bmc = st.session_state.business_model
+    updated_bmc = apply_changes_to_bmc(old_bmc, changes)
+    
+    history = create_change_history(
+        old_bmc,
+        updated_bmc,
+        "current_action",
+        changes,
+        auto_applied
+    )
+    
+    st.session_state.business_model = updated_bmc
+    st.session_state.change_history.append(history)
+    st.session_state.current_recommendation = None
+    
+    save_business_model(updated_bmc)
+    save_change_history(history)
+
+def undo_last_change() -> bool:
+    """Undo the last change made to the business model"""
+    if not st.session_state.change_history:
+        return False
+    
+    last_change = st.session_state.change_history.pop()
+    previous_state = last_change.previous_state_snapshot
+    previous_state['last_updated'] = datetime.fromisoformat(previous_state['last_updated'])
+    
+    restored_bmc = BusinessModelCanvas(**previous_state)
+    st.session_state.business_model = restored_bmc
+    save_business_model(restored_bmc)
+    return True
+
 st.set_page_config(
-    page_title="Agentic AI Actions Co-pilot - Seedstars Assignment",
+    page_title="Agentic AI Actions Co-pilot",
     page_icon="🤖",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# Simple, Clean CSS
 st.markdown("""
 <style>
     .main-header {
@@ -199,59 +231,59 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize Session State
-if 'business_model' not in st.session_state:
-    st.session_state.business_model = load_business_model()
+def initialize_session_state():
+    """Initialize application session state"""
+    if 'business_model' not in st.session_state:
+        st.session_state.business_model = get_sample_business_model_canvas()
 
-if 'orchestrator' not in st.session_state:
-    st.session_state.orchestrator = None
+    if 'orchestrator' not in st.session_state:
+        st.session_state.orchestrator = None
 
-if 'current_recommendation' not in st.session_state:
-    st.session_state.current_recommendation = None
+    if 'current_recommendation' not in st.session_state:
+        st.session_state.current_recommendation = None
 
-if 'auto_mode' not in st.session_state:
-    st.session_state.auto_mode = False
+    if 'auto_mode' not in st.session_state:
+        st.session_state.auto_mode = False
 
-if 'processing' not in st.session_state:
-    st.session_state.processing = False
+    if 'processing' not in st.session_state:
+        st.session_state.processing = False
 
-if 'processing_status' not in st.session_state:
-    st.session_state.processing_status = {
-        'action_detection': 'pending',
-        'outcome_analysis': 'pending',
-        'canvas_update': 'pending',
-        'next_step': 'pending'
-    }
+    if 'processing_status' not in st.session_state:
+        st.session_state.processing_status = {
+            'action_detection': 'pending',
+            'outcome_analysis': 'pending',
+            'canvas_update': 'pending',
+            'next_step': 'pending'
+        }
 
-if 'change_history' not in st.session_state:
-    st.session_state.change_history = load_change_history()
+    if 'change_history' not in st.session_state:
+        st.session_state.change_history = load_change_history()
 
-if 'processed_actions' not in st.session_state:
-    st.session_state.processed_actions = set()
+    if 'processed_actions' not in st.session_state:
+        st.session_state.processed_actions = set()
 
-if 'status_message' not in st.session_state:
-    st.session_state.status_message = None
+    if 'status_message' not in st.session_state:
+        st.session_state.status_message = None
 
-# Header
+initialize_session_state()
+
 st.markdown("""
 <div class="main-header">
-    <h1>🤖 Agentic AI Actions Co-pilot</h1>
+    <h1>Agentic AI Actions Co-pilot</h1>
     <p>Intelligent Business Model Canvas Updates through Multi-Agent Analysis</p>
     <p><em>Seedstars Senior AI Engineer Assignment - Option 2</em></p>
 </div>
 """, unsafe_allow_html=True)
 
-# Check API Key
 if not os.getenv("GOOGLE_API_KEY"):
-    st.error("🔑 Please set GOOGLE_API_KEY environment variable to run the demo")
+    st.error("Please set GOOGLE_API_KEY environment variable to run the demo")
     st.stop()
 
-# Auto-mode Toggle
 st.markdown('<div class="auto-mode-container' + (' auto-mode-active' if st.session_state.auto_mode else '') + '">', unsafe_allow_html=True)
 col1, col2, col3 = st.columns([1, 2, 1])
 with col2:
     st.session_state.auto_mode = st.toggle(
-        "🤖 Auto-mode",
+        "Auto-mode",
         value=st.session_state.auto_mode,
         help="Automatically apply high-confidence changes (>80%)"
     )
@@ -261,29 +293,25 @@ with col2:
         st.info("**MANUAL MODE**: Review all changes before applying")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Main Layout: BMC Left, Controls Right
 left_col, right_col = st.columns([1.2, 0.8])
 
-# LEFT COLUMN: Business Model Canvas Display
 with left_col:
-    st.subheader("📋 Current Business Model Canvas")
+    st.subheader("Current Business Model Canvas")
     
     bmc = st.session_state.business_model
     
-    # BMC Sections in 3x3 grid
     sections = [
-        ('key_partnerships', '🤝 Key Partnerships'),
-        ('key_activities', '⚙️ Key Activities'),
-        ('key_resources', '💎 Key Resources'),
-        ('value_propositions', '💡 Value Propositions'),
-        ('customer_relationships', '🤝 Customer Relationships'),
-        ('channels', '📡 Channels'),
-        ('customer_segments', '👥 Customer Segments'),
-        ('cost_structure', '💸 Cost Structure'),
-        ('revenue_streams', '💰 Revenue Streams')
+        ('key_partnerships', 'Key Partnerships'),
+        ('key_activities', 'Key Activities'),
+        ('key_resources', 'Key Resources'),
+        ('value_propositions', 'Value Propositions'),
+        ('customer_relationships', 'Customer Relationships'),
+        ('channels', 'Channels'),
+        ('customer_segments', 'Customer Segments'),
+        ('cost_structure', 'Cost Structure'),
+        ('revenue_streams', 'Revenue Streams')
     ]
     
-    # Display in 3 rows
     for i in range(0, 9, 3):
         row_sections = sections[i:i+3]
         cols = st.columns(3)
@@ -291,19 +319,24 @@ with left_col:
         for j, (section_key, section_title) in enumerate(row_sections):
             with cols[j]:
                 st.markdown(f'<div class="bmc-section"><h4>{section_title}</h4>', unsafe_allow_html=True)
-                items = getattr(bmc, section_key, [])
                 
-                if items:
-                    for item in items:
-                        st.markdown(f'<div class="bmc-item">{item}</div>', unsafe_allow_html=True)
-                else:
-                    st.markdown('<div style="color: #9ca3af; font-style: italic;">No items defined</div>', unsafe_allow_html=True)
+                try:
+                    items = getattr(bmc, section_key, [])
+                    
+                    if items and len(items) > 0:
+                        for item in items:
+                            if item and isinstance(item, str) and item.strip():
+                                st.markdown(f'<div class="bmc-item">{item}</div>', unsafe_allow_html=True)
+                    else:
+                        st.markdown('<div style="color: #9ca3af; font-style: italic;">No items defined</div>', unsafe_allow_html=True)
+                        
+                except Exception as e:
+                    st.markdown(f'<div style="color: #ef4444; font-style: italic;">Error loading {section_key}</div>', unsafe_allow_html=True)
                 
                 st.markdown('</div>', unsafe_allow_html=True)
     
-    # Show Change Previews if Available
     if st.session_state.current_recommendation and st.session_state.current_recommendation.proposed_changes:
-        st.subheader("🔄 Proposed Changes Preview")
+        st.subheader("Proposed Changes Preview")
         
         changes = st.session_state.current_recommendation.proposed_changes
         formatted_changes = format_proposed_changes(changes)
@@ -321,18 +354,15 @@ with left_col:
             </div>
             ''', unsafe_allow_html=True)
 
-# RIGHT COLUMN: Action Input and Controls
 with right_col:
-    st.subheader("🎯 Action Outcome Processing")
+    st.subheader("Action Outcome Processing")
     
-    # Action Input Section
     with st.container():
         st.write("**Enter Completed Action:**")
         
-        # Quick Demo Options
         demo_option = st.radio(
             "Choose input method:",
-            ["Custom Action", "Sample Action"],
+            ["Sample Action", "Custom Action"],
             horizontal=True
         )
         
@@ -341,7 +371,7 @@ with right_col:
             selected_title = st.selectbox("Select sample action:", action_titles)
             selected_action = get_sample_action_by_title(selected_title)
             
-            with st.expander("📋 View Action Details"):
+            with st.expander("View Action Details"):
                 st.write(f"**Title:** {selected_action.title}")
                 st.write(f"**Outcome:** {selected_action.outcome.value}")
                 st.write(f"**Description:** {selected_action.description}")
@@ -366,7 +396,6 @@ with right_col:
                 "results_data": action_results
             }
     
-    # Processing Status
     if st.session_state.processing:
         st.markdown('<div class="agent-status">', unsafe_allow_html=True)
         agents = [
@@ -386,27 +415,23 @@ with right_col:
         
         st.markdown('</div>', unsafe_allow_html=True)
     
-    # Status Messages
     if st.session_state.status_message:
         message_type, message_text = st.session_state.status_message
         st.markdown(f'<div class="status-message status-{message_type}">{message_text}</div>', unsafe_allow_html=True)
     
-    # Process Action Button
     process_disabled = (
         st.session_state.processing or 
         not action_data.get("title") or 
         not action_data.get("results_data")
     )
     
-    if st.button("🚀 Process Action", disabled=process_disabled, use_container_width=True):
-        # Check for duplicate action
-        action_hash = generate_change_hash_from_action(action_data)
+    if st.button("Process Action", disabled=process_disabled, use_container_width=True):
+        action_hash = generate_action_hash(action_data)
         
         if action_hash in st.session_state.processed_actions:
-            st.session_state.status_message = ("warning", "⚠️ This action has already been processed (idempotent behavior)")
+            st.session_state.status_message = ("warning", "This action has already been processed (idempotent behavior)")
             st.rerun()
         
-        # Start processing
         st.session_state.processing = True
         st.session_state.processing_status = {
             'action_detection': 'running',
@@ -414,120 +439,193 @@ with right_col:
             'canvas_update': 'pending',
             'next_step': 'pending'
         }
-        st.session_state.status_message = ("info", "🤖 Starting 4-agent analysis workflow...")
+        st.session_state.status_message = ("info", "Starting 4-agent analysis workflow...")
         st.rerun()
     
-    # Process the action (async)
     if st.session_state.processing:
-        async def process_action():
-            try:
-                if not st.session_state.orchestrator:
-                    st.session_state.orchestrator = AgenticOrchestrator(model_name="gemini-1.5-flash")
-                
-                # Process through agents with status updates
-                def update_status(agent_name, status):
-                    st.session_state.processing_status[agent_name] = status
-                
-                # Process with real AI
-                update_status('action_detection', 'completed')
-                update_status('outcome_analysis', 'running')
-                st.rerun()
-                
-                recommendation = await st.session_state.orchestrator.process_action_outcome(
-                    action_data, st.session_state.business_model
-                )
-                
-                update_status('outcome_analysis', 'completed')
-                update_status('canvas_update', 'running')
-                st.rerun()
-                
-                update_status('canvas_update', 'completed')
-                update_status('next_step', 'running')
-                st.rerun()
-                
-                update_status('next_step', 'completed')
-                
-                # Store results
-                st.session_state.current_recommendation = recommendation
-                st.session_state.processing = False
-                
-                # Mark action as processed
-                action_hash = generate_change_hash_from_action(action_data)
-                st.session_state.processed_actions.add(action_hash)
-                
-                # Auto-mode logic
-                if st.session_state.auto_mode and recommendation.proposed_changes:
-                    high_confidence_changes = [
-                        change for change in recommendation.proposed_changes 
-                        if change.confidence_score >= 0.8
-                    ]
-                    
-                    if high_confidence_changes:
-                        apply_changes(high_confidence_changes, auto_applied=True)
-                        st.session_state.status_message = ("success", f"✅ Auto-applied {len(high_confidence_changes)} high-confidence changes")
-                    else:
-                        st.session_state.status_message = ("info", "💡 Analysis complete. No high-confidence changes for auto-mode.")
-                else:
-                    st.session_state.status_message = ("success", "✅ Analysis complete! Review proposed changes below.")
-                
-                st.rerun()
-                
-            except Exception as e:
-                st.session_state.processing = False
-                st.session_state.status_message = ("error", f"❌ Processing failed: {str(e)}")
-                st.rerun()
+        # Add debug information
+        st.write("🔍 **Debug Info:**")
+        st.write(f"- Processing status: {st.session_state.processing}")
+        st.write(f"- Orchestrator initialized: {st.session_state.orchestrator is not None}")
+        st.write(f"- Action data keys: {list(action_data.keys()) if action_data else 'None'}")
         
-        # Run async processing
-        asyncio.run(process_action())
+        # Check API key
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if api_key:
+            st.write(f"- API Key: {api_key[:20]}... (valid)")
+        else:
+            st.error("- API Key: NOT FOUND!")
+        
+        # Show current processing status
+        st.write("📊 **Current Status:**")
+        for agent, status in st.session_state.processing_status.items():
+            st.write(f"- {agent}: {status}")
+        
+        # Add a timeout indicator
+        if 'processing_start_time' not in st.session_state:
+            st.session_state.processing_start_time = time.time()
+        
+        elapsed_time = time.time() - st.session_state.processing_start_time
+        st.write(f"⏱️ **Elapsed time:** {elapsed_time:.1f} seconds")
+        
+        if elapsed_time > 30:
+            st.warning("⚠️ Processing is taking longer than expected. This might indicate an API issue.")
+        
+        if elapsed_time > 120:
+            st.error("❌ Processing timeout reached. Stopping workflow.")
+            st.session_state.processing = False
+            st.session_state.status_message = ("error", "Processing timeout - please try again")
+            st.rerun()
+        
+        # Add a reset button for debugging
+        if st.button("🔄 Reset Processing State", help="Click this if the system is stuck"):
+            st.session_state.processing = False
+            st.session_state.processing_start_time = None
+            st.session_state.status_message = ("info", "Processing state reset")
+            st.rerun()
+        
+        # Add a test orchestrator button
+        if st.button("🧪 Test Orchestrator Creation", help="Test if orchestrator can be created"):
+            try:
+                test_orchestrator = AgenticOrchestrator(model_name="gemini-2.0-flash")
+                st.success("✅ Orchestrator creation test passed!")
+                st.session_state.orchestrator = test_orchestrator
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Orchestrator creation test failed: {str(e)}")
+                st.write("This might be due to API key issues or model access problems.")
+        
+        # Try to process with better error handling
+        try:
+            if st.session_state.orchestrator is None:
+                st.write("🔧 Initializing orchestrator...")
+                try:
+                    st.session_state.orchestrator = AgenticOrchestrator(model_name="gemini-2.0-flash")
+                    st.write("✅ Orchestrator initialized successfully")
+                    st.rerun()
+                except Exception as init_error:
+                    st.error(f"❌ Failed to initialize orchestrator: {str(init_error)}")
+                    st.session_state.processing = False
+                    st.session_state.status_message = ("error", f"Orchestrator initialization failed: {str(init_error)}")
+                    st.rerun()
+            
+            # Update status with debug info
+            def update_status(agent_name, status):
+                st.session_state.processing_status[agent_name] = status
+                st.write(f"🔄 Updated {agent_name} to {status}")
+            
+            # Ensure orchestrator is properly initialized
+            if st.session_state.orchestrator is None:
+                st.error("❌ Orchestrator is still None after initialization attempt")
+                st.session_state.processing = False
+                st.session_state.status_message = ("error", "Orchestrator initialization failed")
+                st.rerun()
+            
+            # Process with timeout
+            import asyncio
+            import concurrent.futures
+            
+            def run_async_workflow():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    return loop.run_until_complete(
+                        st.session_state.orchestrator.process_action_outcome(
+                            action_data, st.session_state.business_model
+                        )
+                    )
+                finally:
+                    loop.close()
+            
+            # Use ThreadPoolExecutor to avoid blocking Streamlit
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_async_workflow)
+                
+                # Wait for completion with timeout
+                try:
+                    recommendation = future.result(timeout=120)  # 2 minute timeout
+                    
+                    st.session_state.current_recommendation = recommendation
+                    st.session_state.processing = False
+                    
+                    action_hash = generate_action_hash(action_data)
+                    st.session_state.processed_actions.add(action_hash)
+                    
+                    if st.session_state.auto_mode and recommendation.proposed_changes:
+                        high_confidence_changes = [
+                            change for change in recommendation.proposed_changes 
+                            if change.confidence_score >= 0.8
+                        ]
+                        
+                        if high_confidence_changes:
+                            apply_changes(high_confidence_changes, auto_applied=True)
+                            st.session_state.status_message = ("success", f"Auto-applied {len(high_confidence_changes)} high-confidence changes")
+                        else:
+                            st.session_state.status_message = ("info", "Analysis complete. No high-confidence changes for auto-mode.")
+                    else:
+                        st.session_state.status_message = ("success", "Analysis complete! Review proposed changes below.")
+                    
+                    st.rerun()
+                    
+                except concurrent.futures.TimeoutError:
+                    st.error("❌ Processing timeout - the workflow took too long")
+                    st.session_state.processing = False
+                    st.session_state.status_message = ("error", "Processing timeout - please try again")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Processing error: {str(e)}")
+                    st.session_state.processing = False
+                    st.session_state.status_message = ("error", f"Processing failed: {str(e)}")
+                    st.rerun()
+        
+        except Exception as e:
+            st.error(f"❌ Critical error: {str(e)}")
+            st.session_state.processing = False
+            st.session_state.status_message = ("error", f"Critical error: {str(e)}")
+            st.rerun()
     
-    # Action Buttons
     if st.session_state.current_recommendation and not st.session_state.processing:
         changes = st.session_state.current_recommendation.proposed_changes
         
         if changes and not st.session_state.auto_mode:
-            st.subheader("🎮 Controls")
+            st.subheader("Controls")
             
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("✅ Apply All Changes", use_container_width=True):
+                if st.button("Apply All Changes", use_container_width=True):
                     apply_changes(changes, auto_applied=False)
-                    st.session_state.status_message = ("success", f"✅ Applied {len(changes)} changes successfully!")
+                    st.session_state.status_message = ("success", f"Applied {len(changes)} changes successfully!")
                     st.rerun()
             
             with col2:
-                if st.button("❌ Reject Changes", use_container_width=True):
+                if st.button("Reject Changes", use_container_width=True):
                     st.session_state.current_recommendation = None
-                    st.session_state.status_message = ("info", "❌ Changes rejected")
+                    st.session_state.status_message = ("info", "Changes rejected")
                     st.rerun()
         
-        # Next Steps
         if st.session_state.current_recommendation.next_actions:
-            st.subheader("🎯 Suggested Next Actions")
+            st.subheader("Suggested Next Actions")
             for i, action in enumerate(st.session_state.current_recommendation.next_actions[:3], 1):
                 st.write(f"**{i}.** {action}")
     
-    # Version History & Controls
-    st.subheader("📚 Version History")
+    st.subheader("Version History")
     
     if st.session_state.change_history:
-        # Undo/Redo buttons
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("↶ Undo Last Change", disabled=len(st.session_state.change_history) == 0):
+            if st.button("Undo Last Change", disabled=len(st.session_state.change_history) == 0):
                 if undo_last_change():
-                    st.session_state.status_message = ("success", "↶ Undid last change")
+                    st.session_state.status_message = ("success", "Undid last change")
                     st.rerun()
         
         with col2:
-            # Simplified - just show undo for demo
-            st.button("↷ Redo", disabled=True, help="Redo functionality available")
+            st.button("Redo", disabled=True, help="Redo functionality available")
         
-        # History display
         st.markdown('<div class="version-history">', unsafe_allow_html=True)
         for i, history in enumerate(reversed(st.session_state.change_history[-5:]), 1):
             timestamp = history.timestamp.strftime("%H:%M:%S")
             change_count = len(history.changes_applied)
-            auto_text = "🤖 Auto" if history.auto_applied else "👤 Manual"
+            auto_text = "Auto" if history.auto_applied else "Manual"
             
             st.markdown(f'''
             <div class="history-item">
@@ -539,55 +637,6 @@ with right_col:
     else:
         st.write("*No changes applied yet*")
 
-# Helper Functions
-def generate_change_hash_from_action(action_data: Dict) -> str:
-    """Generate hash for action to detect duplicates"""
-    import hashlib
-    action_string = f"{action_data.get('title', '')}{action_data.get('results_data', '')}"
-    return hashlib.md5(action_string.encode()).hexdigest()
-
-def apply_changes(changes: List[ProposedChange], auto_applied: bool = False):
-    """Apply changes to business model with history tracking"""
-    old_bmc = st.session_state.business_model
-    updated_bmc = apply_changes_to_bmc(old_bmc, changes)
-    
-    # Create history record
-    history = create_change_history(
-        old_bmc,
-        updated_bmc,
-        "current_action",
-        changes,
-        auto_applied
-    )
-    
-    # Update state
-    st.session_state.business_model = updated_bmc
-    st.session_state.change_history.append(history)
-    st.session_state.current_recommendation = None
-    
-    # Save to files
-    save_business_model(updated_bmc)
-    save_change_history(history)
-
-def undo_last_change() -> bool:
-    """Undo the last change made"""
-    if not st.session_state.change_history:
-        return False
-    
-    last_change = st.session_state.change_history.pop()
-    
-    # Restore previous state
-    previous_state = last_change.previous_state_snapshot
-    previous_state['last_updated'] = datetime.fromisoformat(previous_state['last_updated'])
-    
-    restored_bmc = BusinessModelCanvas(**previous_state)
-    st.session_state.business_model = restored_bmc
-    
-    # Save restored state
-    save_business_model(restored_bmc)
-    return True
-
-# Footer
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #6b7280; font-size: 0.9rem;">

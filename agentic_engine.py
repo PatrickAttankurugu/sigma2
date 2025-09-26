@@ -41,7 +41,7 @@ class AgenticOrchestrator:
     def __init__(
         self, 
         google_api_key: Optional[str] = None, 
-        model_name: str = "gemini-1.5-flash"
+        model_name: str = "gemini-2.0-flash"
     ):
         """Initialize the orchestrator with Google Gemini integration."""
         self.api_key = google_api_key or os.getenv("GOOGLE_API_KEY")
@@ -55,9 +55,9 @@ class AgenticOrchestrator:
             api_key=self.api_key,
             model=model_name,
             temperature=0.2,
-            max_output_tokens=2000,
-            timeout=60,
-            max_retries=3
+            max_output_tokens=1000,
+            timeout=30,
+            max_retries=2
         )
 
         # Initialize specialized agents
@@ -91,6 +91,25 @@ class AgenticOrchestrator:
         """
         start_time = time.time()
         
+        try:
+            # Add overall timeout for the entire workflow
+            import asyncio
+            return await asyncio.wait_for(
+                self._process_workflow(action_data, current_bmc, status_callback),
+                timeout=120  # 2 minutes total timeout
+            )
+        except asyncio.TimeoutError:
+            return self._create_timeout_response(action_data)
+        except Exception as e:
+            return self._create_error_response(action_data, str(e))
+    
+    async def _process_workflow(
+        self,
+        action_data: Dict[str, Any],
+        current_bmc: BusinessModelCanvas,
+        status_callback: Optional[callable] = None
+    ) -> AgentRecommendation:
+        """Internal workflow processing with timeout protection."""
         try:
             # Check for duplicate processing (idempotent behavior)
             action_hash = generate_action_hash(action_data)
@@ -176,7 +195,7 @@ class AgenticOrchestrator:
                     status_callback(agent, "failed")
             
             # Return graceful failure response
-            return self._create_error_response(str(e), action_data)
+            return self._create_error_response(action_data, str(e))
 
     def _create_duplicate_response(self, action_data: Dict[str, Any]) -> AgentRecommendation:
         """Create response for duplicate action processing (idempotent behavior)."""
@@ -188,21 +207,37 @@ class AgenticOrchestrator:
             processing_time_ms=0,
             model_version=self.model_name
         )
-
-    def _create_error_response(self, error_message: str, action_data: Dict[str, Any]) -> AgentRecommendation:
-        """Create graceful error response."""
+    
+    def _create_timeout_response(self, action_data: Dict[str, Any]) -> AgentRecommendation:
+        """Create response for timeout scenarios."""
         return AgentRecommendation(
             proposed_changes=[],
             next_actions=[
-                "Review action data for completeness",
+                "Retry the analysis with a simpler action",
                 "Check API connectivity and try again",
-                "Consider manual analysis if issue persists"
+                "Consider manual analysis for complex actions"
             ],
-            reasoning=f"Processing encountered an error: {error_message}. Please review the action data and try again.",
+            reasoning="Workflow timeout: The analysis took longer than expected. This may be due to API latency or complex action data.",
+            confidence_level=ConfidenceLevel.LOW,
+            processing_time_ms=120000,  # 2 minutes
+            model_version=self.model_name
+        )
+    
+    def _create_error_response(self, action_data: Dict[str, Any], error_message: str) -> AgentRecommendation:
+        """Create response for error scenarios."""
+        return AgentRecommendation(
+            proposed_changes=[],
+            next_actions=[
+                "Review the action data for completeness",
+                "Check API key and connectivity",
+                "Try with a different action or simplified data"
+            ],
+            reasoning=f"Processing error: {error_message}. Please review the action data and try again.",
             confidence_level=ConfidenceLevel.LOW,
             processing_time_ms=0,
             model_version=self.model_name
         )
+
 
     def _validate_and_enhance_changes(
         self, 

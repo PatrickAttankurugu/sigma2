@@ -23,7 +23,7 @@ async def test_minimal_api():
         # Minimal call with fast Gemini model and lowest tokens
         llm = ChatGoogleGenerativeAI(
             api_key=api_key,
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash",
             temperature=0.1,
             max_output_tokens=10
         )

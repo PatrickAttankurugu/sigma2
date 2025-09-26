@@ -410,7 +410,7 @@ class AgentRecommendation(BaseModel):
         description="When these recommendations were generated"
     )
     processing_time_ms: Optional[int] = Field(None, description="Time taken to generate recommendations in milliseconds")
-    model_version: str = Field(default="gemini-1.5-flash", description="Version of the AI model used")
+    model_version: str = Field(default="gemini-2.0-flash", description="Version of the AI model used")
     source_action_id: Optional[str] = Field(None, description="ID of the action that triggered these recommendations")
     risk_assessment: Optional[str] = Field("medium", description="Overall risk assessment: low, medium, high")
     implementation_priority: Optional[str] = Field("medium", description="Suggested implementation priority")
