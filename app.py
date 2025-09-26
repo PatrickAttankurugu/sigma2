@@ -22,7 +22,7 @@ from business_models import (
     ActionOutcome,
     ChangeHistory
 )
-from mock_data import (
+from sema_business_data import (
     get_sample_business_model_canvas,
     get_sample_completed_actions,
     get_action_titles,

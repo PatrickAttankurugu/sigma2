@@ -1,140 +1,16 @@
-# ==================== CORE FRAMEWORK ====================
+# Core Framework
 streamlit>=1.28.0
 
-# LangChain ecosystem - compatible versions
+# LangChain ecosystem for agentic AI workflow
 langchain>=0.2.3
-langchain-google-genai==1.0.10
+langchain-google-genai>=1.0.10
 
-# Data validation and environment
+# Data validation and environment management
 pydantic>=2.0.0
 python-dotenv>=1.0.0
 
 # Data manipulation
 pandas>=2.0.0
-numpy>=1.24.3
 
-# ==================== DOCUMENT PROCESSING ====================
-# PDF processing
-PyPDF2>=3.0.1
-
-# Microsoft Office documents
-python-docx>=0.8.11
-openpyxl>=3.1.2
-
-# File type detection and validation
-python-magic>=0.4.27
-python-magic-bin>=0.4.14; sys_platform == "win32"
-
-# Text processing and language detection
-langdetect>=1.0.9
-nltk>=3.8.1
-
-# ==================== VECTOR SEARCH & ML ====================
-# Vector database
-faiss-cpu>=1.7.4
-
-# Embedding models and transformers
-sentence-transformers>=2.2.2
-
-# Machine learning utilities
-scikit-learn>=1.3.2
-
-# ==================== GOOGLE CLOUD INTEGRATION ====================
-# Google Cloud AI Platform for embeddings
-google-cloud-aiplatform>=1.38.1
-
-# Additional Google auth if needed
-google-auth>=2.23.0
-google-auth-oauthlib>=1.1.0
-
-# ==================== FILE HANDLING & ASYNC ====================
-# Async file operations
-aiofiles>=23.2.0
-
-# HTTP requests
-requests>=2.31.0
-
-# File path utilities
-pathlib2>=2.3.7
-
-# ==================== CACHING & PERSISTENCE ====================
-# Caching utilities
-diskcache>=5.6.3
-
-# Pickle alternatives for better performance
-joblib>=1.3.2
-
-# ==================== TEXT PROCESSING UTILITIES ====================
-# Regular expressions and text cleaning
-regex>=2023.8.8
-
-# Text similarity and fuzzy matching
-fuzzywuzzy>=0.18.0
-python-Levenshtein>=0.21.1
-
-# ==================== UI ENHANCEMENTS ====================
-# Progress bars and UI components
-tqdm>=4.66.1
-
-# Plotly for visualizations
-plotly>=5.17.0
-
-# ==================== DEVELOPMENT & TESTING ====================
-# Testing framework
-pytest>=7.4.0
-pytest-asyncio>=0.21.1
-
-# Code quality
-black>=23.7.0
-flake8>=6.0.0
-
-# Type checking
-mypy>=1.5.1
-
-# ==================== SECURITY & VALIDATION ====================
-# File security scanning
-pyclamd>=0.5.0
-
-# Input sanitization
-bleach>=6.0.0
-
-# Hash utilities
-hashlib-compat>=1.0.1
-
-# ==================== LOGGING & MONITORING ====================
-# Enhanced logging
-colorlog>=6.7.0
-
-# Performance monitoring
-psutil>=5.9.5
-
-# ==================== COMPATIBILITY & EXTRAS ====================
-# Ensure compatibility with Python 3.9+
-typing-extensions>=4.7.1
-
-# JSON handling enhancements
-orjson>=3.9.5
-
-# Date/time utilities
+# Utilities
 python-dateutil>=2.8.2
-
-# Environment and OS utilities
-platform>=1.0.8
-
-# ==================== AFRICAN CONTEXT SPECIFIC ====================
-# Currency handling for African markets
-forex-python>=1.8
-
-# Time zone handling for African regions
-pytz>=2023.3
-
-# ==================== OPTIONAL PERFORMANCE BOOSTERS ====================
-# Fast JSON parsing
-ujson>=5.8.0
-
-# Fast CSV processing
-polars>=0.19.0
-
-# Memory optimization
-memory-profiler>=0.60.0
-

@@ -24,7 +24,7 @@ from business_models import (
     CompletedAction,
     ActionOutcome
 )
-from mock_data import get_sample_business_model_canvas
+from sema_business_data import get_sample_business_model_canvas
 
 # ==================== DATA MANAGEMENT FUNCTIONS ====================
 
