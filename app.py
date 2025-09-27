@@ -1,8 +1,9 @@
 """
-SIGMA Agentic AI Actions Co-pilot - Minimal Prototype
+SIGMA Agentic AI Actions Co-pilot - Enhanced Minimal Prototype
 Demonstrates: Action → AI Analysis → BMC Updates → Next Steps
 
 Seedstars Senior AI Engineer Assignment - Option 2
+Enhanced with: Improved prompts, visual indicators, change preview, better error handling
 """
 
 import streamlit as st
@@ -10,6 +11,7 @@ import os
 import json
 from typing import List, Dict, Any
 from dotenv import load_dotenv
+import time
 
 # Load environment variables
 load_dotenv()
@@ -88,9 +90,9 @@ class BusinessModelCanvas:
             'cost_structure': self.cost_structure
         }
 
-# Simple AI Engine
+# Enhanced AI Engine with Better Prompting
 class SimpleAI:
-    """Minimal AI engine using single Gemini call"""
+    """Enhanced AI engine with improved prompting and error handling"""
     
     def __init__(self, api_key: str):
         """Initialize with Google Gemini"""
@@ -109,16 +111,53 @@ class SimpleAI:
             self.HumanMessage = HumanMessage
             
         except ImportError as e:
-            st.error(f"Missing dependencies: {e}")
-            st.error("Run: pip install langchain langchain-google-genai")
-            st.stop()
+            raise ImportError(f"Missing dependencies: {e}. Run: pip install langchain langchain-google-genai")
 
     def analyze_action(self, action_data: Dict[str, Any], bmc: BusinessModelCanvas) -> Dict[str, Any]:
-        """Analyze completed action and suggest BMC updates"""
+        """Analyze completed action and suggest BMC updates with enhanced prompting"""
         
+        # Enhanced system prompt with few-shot examples
         system_prompt = """You are SIGMA's AI co-pilot helping founders validate business assumptions through experiments.
 
-Analyze the completed action and suggest specific Business Model Canvas updates based on what was learned.
+Analyze completed actions and suggest specific Business Model Canvas updates based on what was learned.
+
+EXAMPLE ANALYSIS 1:
+Action: "Customer interviews with 50 Lagos fintech users"
+Outcome: "Failed - 80% couldn't afford $15/month subscription"
+Analysis: "This invalidates our pricing assumption and suggests we're targeting wrong customer segment or need freemium model."
+Changes: [
+    {
+        "section": "customer_segments",
+        "type": "modify",
+        "current": "Middle-income Lagos professionals",
+        "new": "Budget-conscious Lagos users needing micro-payment solutions",
+        "reason": "Interview data shows price sensitivity much higher than assumed",
+        "confidence": 0.89
+    },
+    {
+        "section": "revenue_streams", 
+        "type": "add",
+        "current": null,
+        "new": "Freemium model with premium features at $3/month",
+        "reason": "80% expressed willingness to pay $3/month for basic features",
+        "confidence": 0.82
+    }
+]
+
+EXAMPLE ANALYSIS 2:
+Action: "3-month pilot with 200 farmers using AgriTech platform"
+Outcome: "Successful - 45% yield increase, 92% satisfaction"
+Analysis: "Strong validation of core value proposition and market fit for smallholder farmers."
+Changes: [
+    {
+        "section": "value_propositions",
+        "type": "modify", 
+        "current": "Improve farm productivity through technology",
+        "new": "Proven 45% yield increase through AI-powered farming recommendations",
+        "reason": "Pilot data provides specific, measurable value proposition",
+        "confidence": 0.95
+    }
+]
 
 Return ONLY valid JSON in this exact format:
 {
@@ -143,7 +182,8 @@ Rules:
 - Only suggest changes with confidence > 0.6
 - Focus on what the action outcome actually validates or invalidates
 - Be specific - avoid generic suggestions
-- Limit to 3-4 most important changes maximum"""
+- Limit to 3-4 most important changes maximum
+- Confidence scores should reflect evidence strength: 0.9+ for clear quantitative validation, 0.7-0.8 for solid qualitative insights, 0.6-0.7 for reasonable inferences"""
 
         # Create concise BMC summary
         current_bmc = f"""Current Business Model Canvas Summary:
@@ -211,17 +251,124 @@ Return only the JSON response."""
             return result
             
         except json.JSONDecodeError as e:
-            return {
-                "analysis": f"AI response parsing failed: {str(e)}",
-                "changes": [],
-                "next_experiments": ["Try the analysis again with clearer action description"]
-            }
+            return self._create_parsing_error_response(str(e))
         except Exception as e:
+            return self._create_api_error_response(str(e))
+
+    def _create_parsing_error_response(self, error_detail: str) -> Dict[str, Any]:
+        """Create user-friendly response for JSON parsing errors"""
+        return {
+            "analysis": "AI response was unclear. This sometimes happens with complex actions. Try simplifying your action description or running the analysis again.",
+            "changes": [],
+            "next_experiments": ["Simplify action description and try again", "Break complex actions into smaller experiments"]
+        }
+
+    def _create_api_error_response(self, error_detail: str) -> Dict[str, Any]:
+        """Create user-friendly response for API errors"""
+        if "rate limit" in error_detail.lower():
             return {
-                "analysis": f"Analysis failed: {str(e)}",
+                "analysis": "AI is experiencing high demand. Please wait 30-60 seconds and try again.",
                 "changes": [],
-                "next_experiments": ["Check API connectivity and try again"]
+                "next_experiments": ["Wait a moment and retry the analysis"]
             }
+        elif "api key" in error_detail.lower() or "authentication" in error_detail.lower():
+            return {
+                "analysis": "API key issue detected. Please check your Google API key in the .env file and ensure it's valid.",
+                "changes": [],
+                "next_experiments": ["Verify API key configuration", "Get a new API key from Google AI Studio"]
+            }
+        elif "timeout" in error_detail.lower():
+            return {
+                "analysis": "Analysis timed out. This usually happens with very long action descriptions. Try simplifying your input.",
+                "changes": [],
+                "next_experiments": ["Shorten action description", "Focus on key results only"]
+            }
+        else:
+            return {
+                "analysis": f"Technical issue occurred during analysis. Please try again or contact support if the problem persists.",
+                "changes": [],
+                "next_experiments": ["Try the analysis again", "Check internet connection"]
+            }
+
+# Enhanced UI Helper Functions
+def display_confidence_indicator(confidence: float, label: str = "Confidence"):
+    """Display visual confidence indicator with progress bar"""
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        # Color-coded progress bar
+        if confidence >= 0.8:
+            st.success(f"**{label}:** High ({confidence:.0%})")
+        elif confidence >= 0.7:
+            st.warning(f"**{label}:** Medium ({confidence:.0%})")
+        else:
+            st.error(f"**{label}:** Low ({confidence:.0%})")
+    
+    with col2:
+        st.progress(confidence)
+
+def preview_change(change: Dict[str, Any], current_items: List[str]) -> Dict[str, List[str]]:
+    """Generate before/after preview for a proposed change"""
+    before = current_items.copy()
+    after = current_items.copy()
+    
+    if change["type"] == "add":
+        after.append(change["new"])
+    elif change["type"] == "modify" and change.get("current"):
+        try:
+            idx = after.index(change["current"])
+            after[idx] = change["new"]
+        except ValueError:
+            after.append(change["new"])
+    elif change["type"] == "remove" and change.get("current"):
+        try:
+            after.remove(change["current"])
+        except ValueError:
+            pass
+    
+    return {"before": before, "after": after}
+
+def display_change_preview(changes: List[Dict[str, Any]], bmc: BusinessModelCanvas):
+    """Display before/after preview for all proposed changes"""
+    if not changes:
+        return
+    
+    st.subheader("Preview Changes")
+    st.caption("See how your Business Model Canvas will look after applying these changes")
+    
+    for i, change in enumerate(changes):
+        section_display = change['section'].replace('_', ' ').title()
+        current_items = bmc.get_section(change['section'])
+        preview = preview_change(change, current_items)
+        
+        with st.expander(f"{section_display} - {change['type'].title()}", expanded=False):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.write("**Before:**")
+                if preview["before"]:
+                    for item in preview["before"]:
+                        if change["type"] == "modify" and item == change.get("current"):
+                            st.markdown(f"• ~~{item}~~ *(will be changed)*")
+                        elif change["type"] == "remove" and item == change.get("current"):
+                            st.markdown(f"• ~~{item}~~ *(will be removed)*")
+                        else:
+                            st.write(f"• {item}")
+                else:
+                    st.write("*No items*")
+            
+            with col2:
+                st.write("**After:**")
+                if preview["after"]:
+                    for item in preview["after"]:
+                        if change["type"] == "add" and item == change["new"]:
+                            st.markdown(f"• **{item}** *(new)*")
+                        elif change["type"] == "modify" and item == change["new"]:
+                            st.markdown(f"• **{item}** *(updated)*")
+                        else:
+                            st.write(f"• {item}")
+                else:
+                    st.write("*No items*")
 
 # Sample actions for quick testing
 def get_sample_actions():
@@ -323,17 +470,22 @@ def main():
     """Main Streamlit application"""
     
     # Header
-    st.title("🤖 SIGMA Agentic AI Actions Co-pilot")
+    st.title("SIGMA Agentic AI Actions Co-pilot")
     st.markdown("**Seedstars Assignment**: Complete experiments → AI updates your business model → Get next steps")
     
-    # Check API key
+    # Check API key with enhanced error handling
     api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key or api_key == "your_google_api_key_here":
-        st.error("⚠️ Set your GOOGLE_API_KEY in the .env file")
+    if not api_key:
+        st.error("No Google API key found")
         st.code("""
 # Create .env file with:
 GOOGLE_API_KEY=your_actual_google_api_key_here
+
+# Get API key from: https://makersuite.google.com/app/apikey
         """)
+        st.stop()
+    elif api_key == "your_google_api_key_here":
+        st.error("Please replace the placeholder API key in your .env file with your actual Google API key")
         st.stop()
 
     # Initialize session state
@@ -350,11 +502,11 @@ GOOGLE_API_KEY=your_actual_google_api_key_here
     if 'last_recommendation' not in st.session_state:
         st.session_state.last_recommendation = None
 
-    # Auto-mode toggle
+    # Auto-mode toggle with enhanced description
     st.session_state.auto_mode = st.toggle(
-        "🚀 **Auto-mode**: Apply high-confidence changes (>80%) automatically", 
+        "**Auto-mode**: Apply high-confidence changes (>80%) automatically", 
         value=st.session_state.auto_mode,
-        help="When enabled, changes with >80% confidence will be applied automatically"
+        help="When enabled, changes with >80% confidence will be applied automatically to your BMC"
     )
 
     # Main layout
@@ -362,29 +514,29 @@ GOOGLE_API_KEY=your_actual_google_api_key_here
     
     # Left Column: Business Model Canvas Display
     with col1:
-        st.subheader("📊 Current Business Model Canvas")
+        st.subheader("Current Business Model Canvas")
         st.caption("Real-time view of your business model (SEMA AI Surveillance startup)")
         
         # BMC sections with icons
         bmc_sections = [
-            ("key_partnerships", "🤝", "Key Partnerships"),
-            ("key_activities", "⚙️", "Key Activities"), 
-            ("key_resources", "💎", "Key Resources"),
-            ("value_propositions", "💡", "Value Propositions"),
-            ("customer_relationships", "🤝", "Customer Relationships"),
-            ("channels", "📡", "Channels"),
-            ("customer_segments", "👥", "Customer Segments"),
-            ("cost_structure", "💸", "Cost Structure"),
-            ("revenue_streams", "💰", "Revenue Streams")
+            ("key_partnerships", "Key Partnerships"),
+            ("key_activities", "Key Activities"), 
+            ("key_resources", "Key Resources"),
+            ("value_propositions", "Value Propositions"),
+            ("customer_relationships", "Customer Relationships"),
+            ("channels", "Channels"),
+            ("customer_segments", "Customer Segments"),
+            ("cost_structure", "Cost Structure"),
+            ("revenue_streams", "Revenue Streams")
         ]
         
         # Display BMC in 3x3 grid layout
         for i in range(0, 9, 3):
             cols = st.columns(3)
             
-            for j, (section_key, icon, section_title) in enumerate(bmc_sections[i:i+3]):
+            for j, (section_key, section_title) in enumerate(bmc_sections[i:i+3]):
                 with cols[j]:
-                    st.markdown(f"**{icon} {section_title}**")
+                    st.markdown(f"**{section_title}**")
                     
                     items = st.session_state.bmc.get_section(section_key)
                     if items:
@@ -397,7 +549,7 @@ GOOGLE_API_KEY=your_actual_google_api_key_here
 
     # Right Column: Action Input & Analysis
     with col2:
-        st.subheader("🎯 Log Completed Action")
+        st.subheader("Log Completed Action")
         
         # Sample action selector
         sample_actions = get_sample_actions()
@@ -412,7 +564,7 @@ GOOGLE_API_KEY=your_actual_google_api_key_here
             
             st.info(f"**Sample Action Selected:** {action_data['title']}")
             
-            with st.expander("📋 View Action Details", expanded=False):
+            with st.expander("View Action Details", expanded=False):
                 st.write(f"**Outcome:** {action_data['outcome']}")
                 st.write(f"**Description:** {action_data['description']}")
                 st.write("**Results:**")
@@ -439,69 +591,63 @@ GOOGLE_API_KEY=your_actual_google_api_key_here
                     )
                 }
                 
-                form_submitted = st.form_submit_button("📝 Use Custom Action")
+                form_submitted = st.form_submit_button("Use Custom Action")
                 
                 if form_submitted and not all([action_data["title"], action_data["description"], action_data["results"]]):
                     st.error("Please fill in all fields for custom action")
                     st.stop()
         
         # Analyze Action Button
-        if st.button("🚀 Analyze Action & Update BMC", use_container_width=True, type="primary"):
+        if st.button("Analyze Action & Update BMC", use_container_width=True, type="primary"):
             if not action_data.get("title") or not action_data.get("results"):
                 st.error("Action title and results are required")
             else:
-                with st.spinner("🧠 AI analyzing your action..."):
+                with st.spinner("AI analyzing your action..."):
                     # Get AI recommendation
                     recommendation = st.session_state.ai.analyze_action(action_data, st.session_state.bmc)
                     st.session_state.last_recommendation = recommendation
                     
                     # Display AI Analysis
-                    st.success("✅ Analysis Complete!")
+                    st.success("Analysis Complete!")
                     
-                    with st.expander("🧠 AI Analysis", expanded=True):
+                    with st.expander("AI Analysis", expanded=True):
                         st.write(recommendation["analysis"])
                     
-                    # Show proposed changes
+                    # Show proposed changes with enhanced visuals
                     if recommendation["changes"]:
-                        st.subheader("📝 Proposed BMC Updates")
+                        st.subheader("Proposed BMC Updates")
+                        
+                        # Display change preview
+                        display_change_preview(recommendation["changes"], st.session_state.bmc)
                         
                         high_confidence_changes = []
                         changes_applied = 0
                         
+                        # Show individual changes with confidence indicators
+                        st.subheader("Individual Changes")
                         for i, change in enumerate(recommendation["changes"]):
                             confidence = change.get("confidence", 0)
                             
-                            # Confidence indicator
-                            if confidence >= 0.9:
-                                confidence_color = "🟢"
-                                confidence_label = "Very High"
-                            elif confidence >= 0.8:
-                                confidence_color = "🟢"
-                                confidence_label = "High"
+                            # Track high confidence changes
+                            if confidence >= 0.8:
                                 high_confidence_changes.append(change)
-                            elif confidence >= 0.7:
-                                confidence_color = "🟡"
-                                confidence_label = "Medium"
-                            else:
-                                confidence_color = "🔴"
-                                confidence_label = "Low"
                             
-                            # Display change
+                            # Display change with visual confidence indicator
                             section_display = change['section'].replace('_', ' ').title()
                             
-                            st.markdown(f"""
-                            **{confidence_color} {section_display}** - {change['type'].title()} ({confidence_label} confidence: {confidence:.0%})
-                            
-                            **Change:** {change['new']}
-                            
-                            **Reasoning:** {change['reason']}
-                            """)
-                            
-                            st.markdown("---")
+                            with st.container():
+                                st.markdown(f"**{section_display}** - {change['type'].title()}")
+                                
+                                # Visual confidence indicator
+                                display_confidence_indicator(confidence)
+                                
+                                st.write(f"**Change:** {change['new']}")
+                                st.write(f"**Reasoning:** {change['reason']}")
+                                st.markdown("---")
                         
                         # Auto-mode application
                         if st.session_state.auto_mode and high_confidence_changes:
-                            st.info(f"🚀 **Auto-mode Active**: Applying {len(high_confidence_changes)} high-confidence changes...")
+                            st.info(f"**Auto-mode Active**: Applying {len(high_confidence_changes)} high-confidence changes...")
                             
                             for change in high_confidence_changes:
                                 section = change["section"]
@@ -531,7 +677,8 @@ GOOGLE_API_KEY=your_actual_google_api_key_here
                                 st.session_state.bmc.update_section(section, current_items)
                             
                             if changes_applied > 0:
-                                st.success(f"✅ Auto-applied {changes_applied} high-confidence changes!")
+                                st.success(f"Auto-applied {changes_applied} high-confidence changes!")
+                                time.sleep(1)  # Brief pause before rerun
                                 st.rerun()
                         
                         # Manual controls (if auto-mode is off or there are non-auto changes)
@@ -539,7 +686,7 @@ GOOGLE_API_KEY=your_actual_google_api_key_here
                             col_apply, col_reject = st.columns(2)
                             
                             with col_apply:
-                                if st.button("✅ Apply All Changes", use_container_width=True):
+                                if st.button("Apply All Changes", use_container_width=True):
                                     for change in recommendation["changes"]:
                                         if change.get("confidence", 0) >= 0.6:  # Apply medium+ confidence
                                             section = change["section"]
@@ -566,11 +713,12 @@ GOOGLE_API_KEY=your_actual_google_api_key_here
                                             
                                             st.session_state.bmc.update_section(section, current_items)
                                     
-                                    st.success(f"✅ Applied {changes_applied} changes to your business model!")
+                                    st.success(f"Applied {changes_applied} changes to your business model!")
+                                    time.sleep(1)  # Brief pause before rerun
                                     st.rerun()
                             
                             with col_reject:
-                                if st.button("❌ Reject Changes", use_container_width=True):
+                                if st.button("Reject Changes", use_container_width=True):
                                     st.info("Changes rejected. BMC remains unchanged.")
                     
                     else:
@@ -578,7 +726,7 @@ GOOGLE_API_KEY=your_actual_google_api_key_here
                     
                     # Show next experiments
                     if recommendation.get("next_experiments"):
-                        st.subheader("🔬 Suggested Next Experiments")
+                        st.subheader("Suggested Next Experiments")
                         for i, experiment in enumerate(recommendation["next_experiments"], 1):
                             st.write(f"**{i}.** {experiment}")
 
@@ -588,7 +736,7 @@ GOOGLE_API_KEY=your_actual_google_api_key_here
     <div style="text-align: center; color: #666; font-size: 0.9rem;">
         <strong>SIGMA Agentic AI Actions Co-pilot</strong> | 
         Seedstars Senior AI Engineer Assignment | 
-        Demonstrates: Action Analysis → BMC Updates → Next Steps
+        Enhanced: Better prompts, visual indicators, change preview, error handling
     </div>
     """, unsafe_allow_html=True)
 
