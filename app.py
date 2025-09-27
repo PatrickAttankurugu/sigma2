@@ -1,24 +1,98 @@
 """
-SIGMA Agentic AI Actions Co-pilot - Enhanced Minimal Prototype
+SIGMA Agentic AI Actions Co-pilot - Enhanced with Comprehensive Logging
 Demonstrates: Action → AI Analysis → BMC Updates → Next Steps
 
 Seedstars Senior AI Engineer Assignment - Option 2
-Enhanced with: Improved prompts, visual indicators, change preview, better error handling
+Enhanced with: Improved prompts, visual indicators, change preview, error handling, comprehensive logging
 """
 
 import streamlit as st
 import os
 import json
+import logging
+import time
+from datetime import datetime
 from typing import List, Dict, Any
 from dotenv import load_dotenv
-import time
+import uuid
 
 # Load environment variables
 load_dotenv()
 
-# Simple Business Model Canvas Class
-class BusinessModelCanvas:
-    """Simple BMC with 9 sections - no complex validation"""
+# Configure comprehensive logging
+def setup_logging():
+    """Configure structured logging for the application"""
+    
+    # Create logs directory if it doesn't exist
+    os.makedirs("logs", exist_ok=True)
+    
+    # Configure root logger
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(f"logs/sigma_copilot_{datetime.now().strftime('%Y%m%d')}.log"),
+            logging.StreamHandler()
+        ]
+    )
+    
+    # Create specialized loggers
+    app_logger = logging.getLogger("sigma.app")
+    ai_logger = logging.getLogger("sigma.ai")
+    bmc_logger = logging.getLogger("sigma.bmc")
+    metrics_logger = logging.getLogger("sigma.metrics")
+    
+    return app_logger, ai_logger, bmc_logger, metrics_logger
+
+# Initialize loggers
+app_logger, ai_logger, bmc_logger, metrics_logger = setup_logging()
+
+class LoggingMixin:
+    """Mixin to add structured logging capabilities"""
+    
+    @staticmethod
+    def log_user_action(action_type: str, details: Dict[str, Any]):
+        """Log user interactions"""
+        app_logger.info(f"USER_ACTION: {action_type}", extra={
+            "action_type": action_type,
+            "timestamp": datetime.now().isoformat(),
+            "details": details
+        })
+    
+    @staticmethod 
+    def log_ai_performance(operation: str, duration_ms: int, success: bool, details: Dict[str, Any]):
+        """Log AI operation performance"""
+        ai_logger.info(f"AI_PERFORMANCE: {operation}", extra={
+            "operation": operation,
+            "duration_ms": duration_ms,
+            "success": success,
+            "timestamp": datetime.now().isoformat(),
+            "details": details
+        })
+    
+    @staticmethod
+    def log_bmc_change(section: str, change_type: str, confidence: float, auto_applied: bool):
+        """Log BMC modifications"""
+        bmc_logger.info(f"BMC_CHANGE: {section}.{change_type}", extra={
+            "section": section,
+            "change_type": change_type,
+            "confidence": confidence,
+            "auto_applied": auto_applied,
+            "timestamp": datetime.now().isoformat()
+        })
+    
+    @staticmethod
+    def log_session_metrics(session_id: str, metrics: Dict[str, Any]):
+        """Log session-level metrics"""
+        metrics_logger.info(f"SESSION_METRICS: {session_id}", extra={
+            "session_id": session_id,
+            "timestamp": datetime.now().isoformat(),
+            "metrics": metrics
+        })
+
+# Simple Business Model Canvas Class with Logging
+class BusinessModelCanvas(LoggingMixin):
+    """Simple BMC with 9 sections and comprehensive logging"""
     
     def __init__(self):
         # Initialize with SEMA (AI surveillance startup) sample data
@@ -67,35 +141,52 @@ class BusinessModelCanvas:
             "Team salaries and benefits for developers (~$20,000 monthly)",
             "Marketing and customer acquisition expenses (~$8,000 monthly)"
         ]
+        
+        # Log BMC initialization
+        self.log_user_action("bmc_initialized", {
+            "total_sections": 9,
+            "total_items": sum(len(getattr(self, section)) for section in self.get_section_names())
+        })
+
+    def get_section_names(self) -> List[str]:
+        """Get all BMC section names"""
+        return [
+            'customer_segments', 'value_propositions', 'channels', 'customer_relationships',
+            'revenue_streams', 'key_resources', 'key_activities', 'key_partnerships', 'cost_structure'
+        ]
 
     def get_section(self, section_name: str) -> List[str]:
         """Get items from a BMC section"""
         return getattr(self, section_name, [])
 
     def update_section(self, section_name: str, items: List[str]):
-        """Update a BMC section with new items"""
+        """Update a BMC section with new items and log the change"""
+        old_items = getattr(self, section_name, [])
         setattr(self, section_name, items)
+        
+        # Log the section update
+        self.log_user_action("bmc_section_updated", {
+            "section": section_name,
+            "old_count": len(old_items),
+            "new_count": len(items),
+            "items_added": len(items) - len(old_items)
+        })
 
     def get_all_sections(self) -> Dict[str, List[str]]:
         """Get all BMC sections as dictionary"""
-        return {
-            'customer_segments': self.customer_segments,
-            'value_propositions': self.value_propositions,
-            'channels': self.channels,
-            'customer_relationships': self.customer_relationships,
-            'revenue_streams': self.revenue_streams,
-            'key_resources': self.key_resources,
-            'key_activities': self.key_activities,
-            'key_partnerships': self.key_partnerships,
-            'cost_structure': self.cost_structure
-        }
+        return {section: getattr(self, section) for section in self.get_section_names()}
 
-# Enhanced AI Engine with Better Prompting
-class SimpleAI:
-    """Enhanced AI engine with improved prompting and error handling"""
+    def get_completeness_score(self) -> float:
+        """Calculate BMC completeness percentage"""
+        filled_sections = sum(1 for section in self.get_section_names() if getattr(self, section))
+        return filled_sections / len(self.get_section_names())
+
+# Enhanced AI Engine with Comprehensive Logging
+class SimpleAI(LoggingMixin):
+    """Enhanced AI engine with improved prompting, error handling, and comprehensive logging"""
     
     def __init__(self, api_key: str):
-        """Initialize with Google Gemini"""
+        """Initialize with Google Gemini and log configuration"""
         try:
             from langchain_google_genai import ChatGoogleGenerativeAI
             from langchain_core.messages import HumanMessage, SystemMessage
@@ -110,11 +201,30 @@ class SimpleAI:
             self.SystemMessage = SystemMessage
             self.HumanMessage = HumanMessage
             
+            # Log successful AI initialization
+            self.log_ai_performance("ai_initialization", 0, True, {
+                "model": "gemini-2.0-flash",
+                "api_key_length": len(api_key)
+            })
+            
         except ImportError as e:
+            self.log_ai_performance("ai_initialization", 0, False, {"error": str(e)})
             raise ImportError(f"Missing dependencies: {e}. Run: pip install langchain langchain-google-genai")
 
     def analyze_action(self, action_data: Dict[str, Any], bmc: BusinessModelCanvas) -> Dict[str, Any]:
-        """Analyze completed action and suggest BMC updates with enhanced prompting"""
+        """Analyze completed action and suggest BMC updates with comprehensive logging"""
+        
+        start_time = time.time()
+        analysis_id = str(uuid.uuid4())[:8]
+        
+        # Log analysis start
+        self.log_ai_performance("analysis_started", 0, True, {
+            "analysis_id": analysis_id,
+            "action_title": action_data.get('title', 'Unknown'),
+            "action_outcome": action_data.get('outcome', 'Unknown'),
+            "action_length": len(action_data.get('results', '')),
+            "bmc_completeness": bmc.get_completeness_score()
+        })
         
         # Enhanced system prompt with few-shot examples
         system_prompt = """You are SIGMA's AI co-pilot helping founders validate business assumptions through experiments.
@@ -214,13 +324,23 @@ Based on this action outcome, what specific updates should be made to the Busine
 Return only the JSON response."""
 
         try:
-            # Call Gemini API
+            # Call Gemini API with timing
+            api_start = time.time()
             messages = [
                 self.SystemMessage(content=system_prompt),
                 self.HumanMessage(content=user_prompt)
             ]
             
             response = self.llm.invoke(messages)
+            api_duration = (time.time() - api_start) * 1000
+            
+            # Log API call performance
+            self.log_ai_performance("api_call", int(api_duration), True, {
+                "analysis_id": analysis_id,
+                "response_length": len(response.content),
+                "model": "gemini-2.0-flash"
+            })
+            
             content = response.content.strip()
             
             # Extract JSON from response
@@ -248,11 +368,36 @@ Return only the JSON response."""
             if 'next_experiments' not in result:
                 result['next_experiments'] = ["Continue testing current approach"]
             
+            # Calculate total analysis time
+            total_duration = (time.time() - start_time) * 1000
+            
+            # Log successful analysis
+            self.log_ai_performance("analysis_completed", int(total_duration), True, {
+                "analysis_id": analysis_id,
+                "changes_count": len(result['changes']),
+                "avg_confidence": sum(c.get('confidence', 0) for c in result['changes']) / max(len(result['changes']), 1),
+                "high_confidence_changes": sum(1 for c in result['changes'] if c.get('confidence', 0) >= 0.8),
+                "next_experiments_count": len(result['next_experiments'])
+            })
+            
             return result
             
         except json.JSONDecodeError as e:
+            duration = (time.time() - start_time) * 1000
+            self.log_ai_performance("json_parsing_failed", int(duration), False, {
+                "analysis_id": analysis_id,
+                "error": str(e),
+                "raw_response_length": len(content) if 'content' in locals() else 0
+            })
             return self._create_parsing_error_response(str(e))
+            
         except Exception as e:
+            duration = (time.time() - start_time) * 1000
+            self.log_ai_performance("analysis_failed", int(duration), False, {
+                "analysis_id": analysis_id,
+                "error_type": type(e).__name__,
+                "error": str(e)
+            })
             return self._create_api_error_response(str(e))
 
     def _create_parsing_error_response(self, error_detail: str) -> Dict[str, Any]:
@@ -370,6 +515,84 @@ def display_change_preview(changes: List[Dict[str, Any]], bmc: BusinessModelCanv
                 else:
                     st.write("*No items*")
 
+# Session metrics tracking
+class SessionMetrics(LoggingMixin):
+    """Track session-level metrics and usage patterns"""
+    
+    def __init__(self):
+        self.session_id = str(uuid.uuid4())[:8]
+        self.start_time = datetime.now()
+        self.actions_analyzed = 0
+        self.changes_proposed = 0
+        self.changes_applied = 0
+        self.auto_mode_usage = 0
+        self.sample_actions_used = 0
+        self.custom_actions_used = 0
+        
+        # Log session start
+        self.log_session_metrics(self.session_id, {
+            "event": "session_started",
+            "start_time": self.start_time.isoformat()
+        })
+    
+    def record_action_analyzed(self, action_type: str, outcome: str):
+        """Record an action analysis"""
+        self.actions_analyzed += 1
+        if action_type == "sample":
+            self.sample_actions_used += 1
+        else:
+            self.custom_actions_used += 1
+        
+        self.log_user_action("action_analyzed", {
+            "session_id": self.session_id,
+            "action_type": action_type,
+            "outcome": outcome,
+            "total_analyzed": self.actions_analyzed
+        })
+    
+    def record_changes_proposed(self, count: int, avg_confidence: float):
+        """Record proposed changes"""
+        self.changes_proposed += count
+        
+        self.log_user_action("changes_proposed", {
+            "session_id": self.session_id,
+            "count": count,
+            "avg_confidence": avg_confidence,
+            "total_proposed": self.changes_proposed
+        })
+    
+    def record_changes_applied(self, count: int, auto_applied: bool):
+        """Record applied changes"""
+        self.changes_applied += count
+        if auto_applied:
+            self.auto_mode_usage += 1
+        
+        self.log_bmc_change("multiple", "apply", 1.0, auto_applied)
+        self.log_user_action("changes_applied", {
+            "session_id": self.session_id,
+            "count": count,
+            "auto_applied": auto_applied,
+            "total_applied": self.changes_applied
+        })
+    
+    def get_session_summary(self) -> Dict[str, Any]:
+        """Get comprehensive session summary"""
+        duration = (datetime.now() - self.start_time).total_seconds()
+        
+        return {
+            "session_id": self.session_id,
+            "duration_seconds": duration,
+            "actions_analyzed": self.actions_analyzed,
+            "changes_proposed": self.changes_proposed,
+            "changes_applied": self.changes_applied,
+            "auto_mode_usage": self.auto_mode_usage,
+            "sample_vs_custom": {
+                "sample_actions": self.sample_actions_used,
+                "custom_actions": self.custom_actions_used
+            },
+            "engagement_score": min(self.actions_analyzed * 2 + self.changes_applied, 10)
+        }
+
 # Sample actions for quick testing
 def get_sample_actions():
     """Return sample actions for demo purposes"""
@@ -467,15 +690,32 @@ st.set_page_config(
 )
 
 def main():
-    """Main Streamlit application"""
+    """Main Streamlit application with comprehensive logging"""
+    
+    # Initialize session metrics
+    if 'session_metrics' not in st.session_state:
+        st.session_state.session_metrics = SessionMetrics()
     
     # Header
     st.title("SIGMA Agentic AI Actions Co-pilot")
     st.markdown("**Seedstars Assignment**: Complete experiments → AI updates your business model → Get next steps")
     
+    # Optional: Display session info in sidebar for debugging
+    with st.sidebar:
+        st.subheader("Session Info")
+        metrics = st.session_state.session_metrics.get_session_summary()
+        st.write(f"Session ID: `{metrics['session_id']}`")
+        st.write(f"Actions Analyzed: {metrics['actions_analyzed']}")
+        st.write(f"Changes Applied: {metrics['changes_applied']}")
+        st.write(f"Duration: {metrics['duration_seconds']:.0f}s")
+        
+        if st.button("View Logs"):
+            st.write("Check logs/ directory for detailed logging")
+    
     # Check API key with enhanced error handling
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
+        app_logger.error("No Google API key found in environment")
         st.error("No Google API key found")
         st.code("""
 # Create .env file with:
@@ -485,6 +725,7 @@ GOOGLE_API_KEY=your_actual_google_api_key_here
         """)
         st.stop()
     elif api_key == "your_google_api_key_here":
+        app_logger.error("Placeholder API key detected")
         st.error("Please replace the placeholder API key in your .env file with your actual Google API key")
         st.stop()
 
@@ -495,6 +736,7 @@ GOOGLE_API_KEY=your_actual_google_api_key_here
         try:
             st.session_state.ai = SimpleAI(api_key)
         except Exception as e:
+            app_logger.error(f"Failed to initialize AI: {e}")
             st.error(f"Failed to initialize AI: {e}")
             st.stop()
     if 'auto_mode' not in st.session_state:
@@ -502,12 +744,16 @@ GOOGLE_API_KEY=your_actual_google_api_key_here
     if 'last_recommendation' not in st.session_state:
         st.session_state.last_recommendation = None
 
-    # Auto-mode toggle with enhanced description
-    st.session_state.auto_mode = st.toggle(
+    # Auto-mode toggle with enhanced description and logging
+    auto_mode_changed = st.toggle(
         "**Auto-mode**: Apply high-confidence changes (>80%) automatically", 
         value=st.session_state.auto_mode,
         help="When enabled, changes with >80% confidence will be applied automatically to your BMC"
     )
+    
+    if auto_mode_changed != st.session_state.auto_mode:
+        st.session_state.auto_mode = auto_mode_changed
+        app_logger.info(f"Auto-mode toggled: {auto_mode_changed}")
 
     # Main layout
     col1, col2 = st.columns([1.5, 1.2])
@@ -561,6 +807,7 @@ GOOGLE_API_KEY=your_actual_google_api_key_here
         if use_sample != "Custom Action":
             # Use selected sample action
             action_data = sample_actions[use_sample]
+            action_type = "sample"
             
             st.info(f"**Sample Action Selected:** {action_data['title']}")
             
@@ -572,6 +819,7 @@ GOOGLE_API_KEY=your_actual_google_api_key_here
         
         else:
             # Custom action form
+            action_type = "custom"
             with st.form("custom_action_form"):
                 st.write("**Create Custom Action:**")
                 
@@ -602,10 +850,18 @@ GOOGLE_API_KEY=your_actual_google_api_key_here
             if not action_data.get("title") or not action_data.get("results"):
                 st.error("Action title and results are required")
             else:
+                # Record action analysis start
+                st.session_state.session_metrics.record_action_analyzed(action_type, action_data.get('outcome', 'Unknown'))
+                
                 with st.spinner("AI analyzing your action..."):
                     # Get AI recommendation
                     recommendation = st.session_state.ai.analyze_action(action_data, st.session_state.bmc)
                     st.session_state.last_recommendation = recommendation
+                    
+                    # Record changes proposed
+                    if recommendation["changes"]:
+                        avg_confidence = sum(c.get('confidence', 0) for c in recommendation["changes"]) / len(recommendation["changes"])
+                        st.session_state.session_metrics.record_changes_proposed(len(recommendation["changes"]), avg_confidence)
                     
                     # Display AI Analysis
                     st.success("Analysis Complete!")
@@ -677,6 +933,7 @@ GOOGLE_API_KEY=your_actual_google_api_key_here
                                 st.session_state.bmc.update_section(section, current_items)
                             
                             if changes_applied > 0:
+                                st.session_state.session_metrics.record_changes_applied(changes_applied, auto_applied=True)
                                 st.success(f"Auto-applied {changes_applied} high-confidence changes!")
                                 time.sleep(1)  # Brief pause before rerun
                                 st.rerun()
@@ -713,12 +970,15 @@ GOOGLE_API_KEY=your_actual_google_api_key_here
                                             
                                             st.session_state.bmc.update_section(section, current_items)
                                     
+                                    if changes_applied > 0:
+                                        st.session_state.session_metrics.record_changes_applied(changes_applied, auto_applied=False)
                                     st.success(f"Applied {changes_applied} changes to your business model!")
                                     time.sleep(1)  # Brief pause before rerun
                                     st.rerun()
                             
                             with col_reject:
                                 if st.button("Reject Changes", use_container_width=True):
+                                    app_logger.info("User rejected all proposed changes")
                                     st.info("Changes rejected. BMC remains unchanged.")
                     
                     else:
@@ -730,13 +990,27 @@ GOOGLE_API_KEY=your_actual_google_api_key_here
                         for i, experiment in enumerate(recommendation["next_experiments"], 1):
                             st.write(f"**{i}.** {experiment}")
 
-    # Footer
+    # Footer with session summary
     st.markdown("---")
+    
+    # Display session metrics summary
+    metrics = st.session_state.session_metrics.get_session_summary()
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Actions Analyzed", metrics['actions_analyzed'])
+    with col2:
+        st.metric("Changes Applied", metrics['changes_applied'])
+    with col3:
+        st.metric("Session Duration", f"{metrics['duration_seconds']:.0f}s")
+    with col4:
+        st.metric("Engagement Score", f"{metrics['engagement_score']}/10")
+    
     st.markdown("""
     <div style="text-align: center; color: #666; font-size: 0.9rem;">
         <strong>SIGMA Agentic AI Actions Co-pilot</strong> | 
         Seedstars Senior AI Engineer Assignment | 
-        Enhanced: Better prompts, visual indicators, change preview, error handling
+        Enhanced: Prompts, visuals, preview, error handling, comprehensive logging
     </div>
     """, unsafe_allow_html=True)
 
