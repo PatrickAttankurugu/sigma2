@@ -1,963 +1,596 @@
 """
-Agentic AI Actions Co-pilot
-Multi-agent workflow for intelligent business model canvas updates
-Enhanced with comprehensive error handling and recovery mechanisms
+SIGMA Agentic AI Actions Co-pilot - Minimal Prototype
+Demonstrates: Action → AI Analysis → BMC Updates → Next Steps
+
+Seedstars Senior AI Engineer Assignment - Option 2
 """
 
-import asyncio
-import os
-import time
-import traceback
-from datetime import datetime
-from typing import Dict, List, Optional, Any
-
 import streamlit as st
+import os
+import json
+from typing import List, Dict, Any
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-try:
-    from business_models import (
-        BusinessModelCanvas,
-        CompletedAction,
-        AgentRecommendation,
-        ProposedChange,
-        ActionOutcome,
-        ChangeHistory
-    )
-except ImportError as e:
-    st.error(f"Failed to import business models: {str(e)}")
-    st.stop()
+# Simple Business Model Canvas Class
+class BusinessModelCanvas:
+    """Simple BMC with 9 sections - no complex validation"""
+    
+    def __init__(self):
+        # Initialize with SEMA (AI surveillance startup) sample data
+        self.customer_segments = [
+            "Tech-savvy homeowners in urban gated communities (ages 35-60)",
+            "Property management companies managing 500+ residential units",
+            "High-net-worth individuals with existing security infrastructure"
+        ]
+        self.value_propositions = [
+            "AI-powered predictive security that prevents crimes before they happen",
+            "24/7 automated surveillance monitoring with instant mobile alerts",
+            "Integration with existing CCTV systems to add predictive capabilities"
+        ]
+        self.channels = [
+            "Direct sales through dedicated teams targeting gated communities",
+            "Online marketing including social media and LinkedIn outreach",
+            "Partnerships with property developers and security companies"
+        ]
+        self.customer_relationships = [
+            "Personal assistance through dedicated account managers",
+            "24/7 technical support for system monitoring and maintenance",
+            "Regular training sessions for security personnel and homeowners"
+        ]
+        self.revenue_streams = [
+            "Monthly SaaS subscriptions - Basic tier at $4 per camera",
+            "Premium subscription tier at $10 per month with advanced analytics",
+            "One-time installation and setup services ($200-500 per property)"
+        ]
+        self.key_resources = [
+            "Skilled AI developers with computer vision expertise",
+            "Cloud computing infrastructure on AWS for real-time processing",
+            "Proprietary AI algorithms for predictive crime detection"
+        ]
+        self.key_activities = [
+            "Software development for predictive crime detection algorithms",
+            "Real-time data analysis from CCTV feeds using computer vision",
+            "Customer support and technical training for security systems"
+        ]
+        self.key_partnerships = [
+            "Ghana Digital Centres Limited for business incubation support",
+            "Amazon Web Services (AWS) for cloud computing infrastructure",
+            "Hikvision Ghana for security camera hardware and support"
+        ]
+        self.cost_structure = [
+            "Cloud hosting and infrastructure costs (~$6,000 monthly)",
+            "Team salaries and benefits for developers (~$20,000 monthly)",
+            "Marketing and customer acquisition expenses (~$8,000 monthly)"
+        ]
 
-try:
-    from sema_business_data import (
-        get_sample_business_model_canvas,
-        get_sample_completed_actions,
-        get_action_titles,
-        get_sample_action_by_title
-    )
-except ImportError as e:
-    st.error(f"Failed to import sample data: {str(e)}")
-    st.stop()
+    def get_section(self, section_name: str) -> List[str]:
+        """Get items from a BMC section"""
+        return getattr(self, section_name, [])
 
-try:
-    from agentic_engine import AgenticOrchestrator
-except ImportError as e:
-    st.error(f"Failed to import agentic engine: {str(e)}")
-    st.stop()
+    def update_section(self, section_name: str, items: List[str]):
+        """Update a BMC section with new items"""
+        setattr(self, section_name, items)
 
-try:
-    from utils import (
-        load_business_model,
-        save_business_model,
-        apply_changes_to_bmc,
-        create_change_history,
-        save_change_history,
-        load_change_history,
-        format_proposed_changes,
-        generate_action_hash
-    )
-except ImportError as e:
-    st.error(f"Failed to import utilities: {str(e)}")
-    st.stop()
-
-
-def create_fallback_business_model() -> BusinessModelCanvas:
-    """Create a minimal fallback business model when sample data fails"""
-    try:
-        return BusinessModelCanvas(
-            customer_segments=["Early adopters and tech-savvy users"],
-            value_propositions=["Innovative solution addressing key market needs"],
-            channels=["Digital platforms and direct sales"],
-            customer_relationships=["Personal assistance and self-service"],
-            revenue_streams=["Subscription fees and service charges"],
-            key_resources=["Technology platform and skilled team"],
-            key_activities=["Product development and customer support"],
-            key_partnerships=["Strategic technology and business partners"],
-            cost_structure=["Development costs and operational expenses"],
-            last_updated=datetime.now(),
-            version="1.0.0",
-            tags=["fallback", "default"]
-        )
-    except Exception as e:
-        st.error(f"Critical error: Cannot create fallback business model: {str(e)}")
-        st.stop()
-
-
-def safe_apply_changes(changes: List[ProposedChange], auto_applied: bool = False) -> bool:
-    """Apply changes to business model with comprehensive error handling"""
-    try:
-        if not hasattr(st.session_state, 'business_model') or st.session_state.business_model is None:
-            st.error("Business model not properly initialized")
-            return False
-            
-        old_bmc = st.session_state.business_model
-        
-        try:
-            updated_bmc = apply_changes_to_bmc(old_bmc, changes)
-        except Exception as e:
-            st.error(f"Failed to apply changes to business model: {str(e)}")
-            return False
-        
-        try:
-            history = create_change_history(
-                old_bmc,
-                updated_bmc,
-                "current_action",
-                changes,
-                auto_applied
-            )
-        except Exception as e:
-            st.warning(f"Failed to create change history: {str(e)}")
-            # Continue without history tracking
-            history = None
-        
-        # Update session state
-        st.session_state.business_model = updated_bmc
-        if history and hasattr(st.session_state, 'change_history'):
-            st.session_state.change_history.append(history)
-        st.session_state.current_recommendation = None
-        
-        # Save to file
-        try:
-            save_business_model(updated_bmc)
-            if history:
-                save_change_history(history)
-        except Exception as e:
-            st.warning(f"Failed to save changes to file: {str(e)}")
-            # Continue - changes are in memory
-        
-        return True
-        
-    except Exception as e:
-        st.error(f"Critical error in apply_changes: {str(e)}")
-        return False
-
-
-def safe_undo_last_change() -> bool:
-    """Undo the last change with error handling"""
-    try:
-        if not hasattr(st.session_state, 'change_history') or not st.session_state.change_history:
-            st.warning("No changes to undo")
-            return False
-        
-        try:
-            last_change = st.session_state.change_history.pop()
-            previous_state = last_change.previous_state_snapshot
-            previous_state['last_updated'] = datetime.fromisoformat(previous_state['last_updated'])
-            
-            restored_bmc = BusinessModelCanvas(**previous_state)
-            st.session_state.business_model = restored_bmc
-            
-            try:
-                save_business_model(restored_bmc)
-            except Exception as e:
-                st.warning(f"Failed to save restored model: {str(e)}")
-                
-            return True
-            
-        except Exception as e:
-            st.error(f"Failed to restore previous state: {str(e)}")
-            # Put the change back
-            st.session_state.change_history.append(last_change)
-            return False
-            
-    except Exception as e:
-        st.error(f"Critical error in undo operation: {str(e)}")
-        return False
-
-
-def safe_create_orchestrator() -> Optional[AgenticOrchestrator]:
-    """Safely create and return an orchestrator instance with comprehensive error handling"""
-    try:
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            st.error("Google API key not found. Please check your environment variables.")
-            return None
-        
-        if len(api_key.strip()) < 10:
-            st.error("Google API key appears to be invalid (too short)")
-            return None
-        
-        try:
-            orchestrator = AgenticOrchestrator(
-                google_api_key=api_key,
-                model_name="gemini-2.0-flash"
-            )
-            return orchestrator
-            
-        except ValueError as e:
-            st.error(f"Orchestrator configuration error: {str(e)}")
-            return None
-        except Exception as e:
-            st.error(f"Failed to create orchestrator: {str(e)}")
-            return None
-            
-    except Exception as e:
-        st.error(f"Critical error in orchestrator creation: {str(e)}")
-        return None
-
-
-def initialize_session_state():
-    """Initialize application session state with comprehensive error handling and recovery"""
-    try:
-        # Initialize business model with multiple fallbacks
-        if 'business_model' not in st.session_state:
-            try:
-                st.session_state.business_model = get_sample_business_model_canvas()
-            except Exception as e:
-                st.warning(f"Could not load sample business model: {str(e)}. Using fallback.")
-                try:
-                    st.session_state.business_model = load_business_model()
-                except Exception as e2:
-                    st.warning(f"Could not load saved business model: {str(e2)}. Creating new one.")
-                    st.session_state.business_model = create_fallback_business_model()
-
-        # Validate business model
-        if st.session_state.business_model is None:
-            st.session_state.business_model = create_fallback_business_model()
-
-        # Initialize other session state with safe defaults
-        session_defaults = {
-            'current_recommendation': None,
-            'auto_mode': False,
-            'processing': False,
-            'processing_status': {
-                'action_detection': 'pending',
-                'outcome_analysis': 'pending',
-                'canvas_update': 'pending',
-                'next_step': 'pending'
-            },
-            'processed_actions': set(),
-            'status_message': None,
-            'orchestrator_error': None,
-            'orchestrator': None,
-            'initialization_errors': []
+    def get_all_sections(self) -> Dict[str, List[str]]:
+        """Get all BMC sections as dictionary"""
+        return {
+            'customer_segments': self.customer_segments,
+            'value_propositions': self.value_propositions,
+            'channels': self.channels,
+            'customer_relationships': self.customer_relationships,
+            'revenue_streams': self.revenue_streams,
+            'key_resources': self.key_resources,
+            'key_activities': self.key_activities,
+            'key_partnerships': self.key_partnerships,
+            'cost_structure': self.cost_structure
         }
-        
-        for key, default_value in session_defaults.items():
-            if key not in st.session_state:
-                st.session_state[key] = default_value
 
-        # Initialize change history with error handling
-        if 'change_history' not in st.session_state:
-            try:
-                st.session_state.change_history = load_change_history()
-            except Exception as e:
-                st.session_state.change_history = []
-                st.session_state.initialization_errors.append(f"Change history: {str(e)}")
-
-        # Show initialization warnings if any
-        if hasattr(st.session_state, 'initialization_errors') and st.session_state.initialization_errors:
-            for error in st.session_state.initialization_errors[:3]:  # Show max 3 errors
-                st.warning(f"Initialization warning: {error}")
-            st.session_state.initialization_errors = []  # Clear after showing
-
-    except Exception as e:
-        st.error(f"Critical error in session state initialization: {str(e)}")
-        st.error("Please refresh the page and try again.")
-        st.stop()
-
-
-def ensure_orchestrator() -> bool:
-    """Ensure orchestrator is available with comprehensive error handling"""
-    try:
-        if not hasattr(st.session_state, 'orchestrator'):
-            st.session_state.orchestrator = None
-            
-        if st.session_state.orchestrator is None:
-            with st.spinner("Initializing AI orchestrator..."):
-                st.session_state.orchestrator = safe_create_orchestrator()
-                
-            if st.session_state.orchestrator is None:
-                st.session_state.orchestrator_error = "Failed to initialize AI orchestrator"
-                return False
-        
-        return st.session_state.orchestrator is not None
-        
-    except Exception as e:
-        st.error(f"Critical error in orchestrator initialization: {str(e)}")
-        st.session_state.orchestrator_error = str(e)
-        return False
-
-
-async def safe_process_action_with_orchestrator(
-    action_data: Dict[str, Any], 
-    business_model: BusinessModelCanvas
-) -> AgentRecommendation:
-    """Process action with comprehensive error handling and status updates"""
-    try:
-        if not ensure_orchestrator():
-            raise Exception("Orchestrator not available")
-
-        # Create status callback for UI updates
-        def status_callback(agent: str, status: str):
-            try:
-                if agent in st.session_state.processing_status:
-                    st.session_state.processing_status[agent] = status
-            except Exception:
-                pass  # Ignore status update failures
-
-        # Process through orchestrator with timeout
+# Simple AI Engine
+class SimpleAI:
+    """Minimal AI engine using single Gemini call"""
+    
+    def __init__(self, api_key: str):
+        """Initialize with Google Gemini"""
         try:
-            recommendation = await asyncio.wait_for(
-                st.session_state.orchestrator.process_action_outcome(
-                    action_data, business_model, status_callback
-                ),
-                timeout=120
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            from langchain_core.messages import HumanMessage, SystemMessage
+            
+            self.llm = ChatGoogleGenerativeAI(
+                api_key=api_key,
+                model="gemini-2.0-flash",
+                temperature=0.3,
+                max_output_tokens=1500,
+                timeout=30
             )
-            return recommendation
+            self.SystemMessage = SystemMessage
+            self.HumanMessage = HumanMessage
             
-        except asyncio.TimeoutError:
-            raise Exception("Processing timeout - the analysis took too long")
+        except ImportError as e:
+            st.error(f"Missing dependencies: {e}")
+            st.error("Run: pip install langchain langchain-google-genai")
+            st.stop()
+
+    def analyze_action(self, action_data: Dict[str, Any], bmc: BusinessModelCanvas) -> Dict[str, Any]:
+        """Analyze completed action and suggest BMC updates"""
+        
+        system_prompt = """You are SIGMA's AI co-pilot helping founders validate business assumptions through experiments.
+
+Analyze the completed action and suggest specific Business Model Canvas updates based on what was learned.
+
+Return ONLY valid JSON in this exact format:
+{
+    "analysis": "2-3 sentence analysis of what this action outcome means for the business model",
+    "changes": [
+        {
+            "section": "customer_segments|value_propositions|channels|customer_relationships|revenue_streams|key_resources|key_activities|key_partnerships|cost_structure",
+            "type": "add|modify|remove", 
+            "current": "existing item being modified/removed (null for add operations)",
+            "new": "new item to add or replacement text",
+            "reason": "clear explanation of why this change makes sense based on the action outcome",
+            "confidence": 0.85
+        }
+    ],
+    "next_experiments": [
+        "Specific actionable next experiment to validate further assumptions",
+        "Another logical next step to build on these learnings"
+    ]
+}
+
+Rules:
+- Only suggest changes with confidence > 0.6
+- Focus on what the action outcome actually validates or invalidates
+- Be specific - avoid generic suggestions
+- Limit to 3-4 most important changes maximum"""
+
+        # Create concise BMC summary
+        current_bmc = f"""Current Business Model Canvas Summary:
+Customer Segments: {len(bmc.customer_segments)} segments defined
+Value Propositions: {len(bmc.value_propositions)} propositions  
+Channels: {len(bmc.channels)} channels
+Revenue Streams: {len(bmc.revenue_streams)} revenue models
+Key Resources: {len(bmc.key_resources)} resources
+Key Activities: {len(bmc.key_activities)} activities
+Key Partnerships: {len(bmc.key_partnerships)} partnerships
+Cost Structure: {len(bmc.cost_structure)} cost components
+
+Key Current Elements:
+- Primary Customer: {bmc.customer_segments[0] if bmc.customer_segments else 'Not defined'}
+- Main Value Prop: {bmc.value_propositions[0] if bmc.value_propositions else 'Not defined'}
+- Top Revenue Stream: {bmc.revenue_streams[0] if bmc.revenue_streams else 'Not defined'}"""
+
+        user_prompt = f"""COMPLETED ACTION/EXPERIMENT:
+Title: {action_data['title']}
+Outcome: {action_data['outcome']} 
+Description: {action_data['description']}
+Key Results: {action_data['results']}
+
+{current_bmc}
+
+Based on this action outcome, what specific updates should be made to the Business Model Canvas? What assumptions were validated or invalidated?
+
+Return only the JSON response."""
+
+        try:
+            # Call Gemini API
+            messages = [
+                self.SystemMessage(content=system_prompt),
+                self.HumanMessage(content=user_prompt)
+            ]
+            
+            response = self.llm.invoke(messages)
+            content = response.content.strip()
+            
+            # Extract JSON from response
+            if "```json" in content:
+                json_part = content.split("```json")[1].split("```")[0].strip()
+            elif "```" in content:
+                json_part = content.split("```")[1].split("```")[0].strip()
+            else:
+                # Try to find JSON object in response
+                start = content.find("{")
+                end = content.rfind("}") + 1
+                if start >= 0 and end > start:
+                    json_part = content[start:end]
+                else:
+                    json_part = content
+            
+            # Parse JSON response
+            result = json.loads(json_part)
+            
+            # Validate required fields
+            if 'analysis' not in result:
+                result['analysis'] = "Analysis completed successfully"
+            if 'changes' not in result:
+                result['changes'] = []
+            if 'next_experiments' not in result:
+                result['next_experiments'] = ["Continue testing current approach"]
+            
+            return result
+            
+        except json.JSONDecodeError as e:
+            return {
+                "analysis": f"AI response parsing failed: {str(e)}",
+                "changes": [],
+                "next_experiments": ["Try the analysis again with clearer action description"]
+            }
         except Exception as e:
-            raise Exception(f"Orchestrator processing failed: {str(e)}")
+            return {
+                "analysis": f"Analysis failed: {str(e)}",
+                "changes": [],
+                "next_experiments": ["Check API connectivity and try again"]
+            }
 
-    except Exception as e:
-        # Return error recommendation
-        from business_models import ConfidenceLevel
-        return AgentRecommendation(
-            proposed_changes=[],
-            next_actions=[
-                "Review the error and try again",
-                "Check API connectivity and settings",
-                "Try with simpler action data"
-            ],
-            reasoning=f"Processing failed: {str(e)}",
-            confidence_level=ConfidenceLevel.LOW,
-            processing_time_ms=0,
-            model_version="error"
-        )
+# Sample actions for quick testing
+def get_sample_actions():
+    """Return sample actions for demo purposes"""
+    return {
+        "Trasacco Estates Pilot (Successful)": {
+            "title": "3-Month AI Surveillance Pilot at Trasacco Estates",
+            "outcome": "Successful",
+            "description": "Deployed SEMA's predictive surveillance system across Trasacco Estates Phase 4, covering 200 homes with 150 existing CCTV cameras. Implemented AI-driven threat detection and real-time alerts.",
+            "results": """
+EXCEPTIONAL PILOT PERFORMANCE:
 
+Security Impact:
+• 89% crime prediction accuracy (exceeded 75% target)
+• 23 security incidents prevented in 3 months  
+• False positive rate: Only 12% (industry standard 35%)
+• System uptime: 99.7% across all camera feeds
 
-def safe_get_action_data(demo_option: str, selected_title: str = None) -> Dict[str, Any]:
-    """Safely get action data with error handling"""
-    try:
-        if demo_option == "Sample Action":
-            if not selected_title:
-                return {}
-            
-            try:
-                selected_action = get_sample_action_by_title(selected_title)
-                return {
-                    "title": selected_action.title,
-                    "description": selected_action.description,
-                    "outcome": selected_action.outcome.value,
-                    "results_data": selected_action.results_data
-                }
-            except Exception as e:
-                st.error(f"Failed to load sample action: {str(e)}")
-                return {}
-        else:
-            # Custom action - will be handled by form inputs
-            return {}
-            
-    except Exception as e:
-        st.error(f"Error getting action data: {str(e)}")
-        return {}
+Customer Validation:
+• 91% resident satisfaction score (surveyed 180 households)
+• 87% activated mobile alerts within first month
+• Property management: "Game-changing technology"
+• 91% renewal intent for permanent installation
 
+Business Metrics:
+• Monthly recurring revenue potential: $1,800 from this community
+• Customer acquisition cost: $45 per household (20% below budget)
+• 5 qualified referrals generated from word-of-mouth
+• Property value increase: 8% cited by real estate agents
+"""
+        },
+        
+        "CCTV Integration Testing (Failed)": {
+            "title": "Legacy CCTV System Integration with 5 Security Companies",
+            "outcome": "Failed", 
+            "description": "Attempted to integrate SEMA's AI algorithms with existing CCTV systems used by 5 major Ghanaian security companies to demonstrate plug-and-play compatibility.",
+            "results": """
+INTEGRATION FAILURE ANALYSIS:
 
-# Streamlit Configuration
+Technical Issues:
+• Only 2 out of 5 security company systems successfully integrated (40%)
+• 3 companies using proprietary Chinese camera protocols incompatible
+• 60% of existing cameras output in incompatible video formats
+• Legacy DVR systems cannot support cloud integration requirements
+
+Market Reality:
+• 78% of installations are over 5 years old (legacy systems)
+• Security companies resistant to cloud-based solutions (privacy concerns)
+• Network security policies prevent third-party cloud access
+• Underestimated diversity of existing infrastructure in Ghana
+
+Business Impact:
+• Market size reduced by 65% (incompatible customers)
+• Additional $15,000 development costs for compatibility layer
+• 6-8 month delay in partnership expansion strategy
+• Must pivot from retrofit market to new installation focus
+"""
+        },
+        
+        "Ghana Police Partnership (Inconclusive)": {
+            "title": "Ghana Police Service Smart City Partnership Discussions",
+            "outcome": "Inconclusive",
+            "description": "4-month negotiations with Ghana Police Service to integrate SEMA's technology into their Smart City crime prevention initiative involving multiple government departments.",
+            "results": """
+MIXED PARTNERSHIP SIGNALS:
+
+Positive Indicators:
+• Strong technical endorsement from GPS Technology Division
+• Written support from 3 Regional Police Commanders
+• World Bank Smart Cities fund shows co-financing interest
+• Minister of Interior expressed public support
+
+Significant Challenges:
+• 18-month government tender process required
+• Data privacy concerns from Attorney General's office
+• Budget allocation pending National Assembly approval
+• Competition from 2 international firms with gov relationships
+• Leadership change during negotiation period
+
+Current Status:
+• Technical requirements: 95% agreement
+• Commercial terms: 60% consensus  
+• Legal framework: 40% complete
+• Potential contract value: $2.4M over 3 years
+• Success probability assessment: 45%
+"""
+        }
+    }
+
+# Streamlit App Configuration
 st.set_page_config(
-    page_title="Agentic AI Actions Co-pilot",
+    page_title="SIGMA Agentic AI Co-pilot",
     page_icon="🤖",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# CSS Styles
-st.markdown("""
-<style>
-    .main-header {
-        background: linear-gradient(90deg, #1e40af 0%, #3b82f6 100%);
-        color: white;
-        padding: 1.5rem;
-        border-radius: 0.5rem;
-        margin-bottom: 2rem;
-        text-align: center;
-    }
+def main():
+    """Main Streamlit application"""
     
-    .main-header h1 {
-        margin: 0;
-        font-size: 2rem;
-        font-weight: 600;
-    }
+    # Header
+    st.title("🤖 SIGMA Agentic AI Actions Co-pilot")
+    st.markdown("**Seedstars Assignment**: Complete experiments → AI updates your business model → Get next steps")
     
-    .main-header p {
-        margin: 0.5rem 0 0 0;
-        opacity: 0.9;
-        font-size: 1.1rem;
-    }
-    
-    .bmc-section {
-        background: white;
-        border: 1px solid #e5e7eb;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        min-height: 120px;
-    }
-    
-    .bmc-section h4 {
-        color: #1f2937;
-        font-size: 0.9rem;
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-        text-transform: uppercase;
-        border-bottom: 2px solid #e5e7eb;
-        padding-bottom: 0.5rem;
-    }
-    
-    .bmc-item {
-        background: #f8fafc;
-        padding: 0.5rem;
-        border-radius: 0.25rem;
-        margin-bottom: 0.5rem;
-        border-left: 3px solid #3b82f6;
-        font-size: 0.85rem;
-    }
-    
-    .change-preview {
-        background: #fef3c7;
-        border: 1px solid #f59e0b;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        margin: 1rem 0;
-    }
-    
-    .change-preview.high-confidence {
-        background: #d1fae5;
-        border-color: #10b981;
-    }
-    
-    .change-preview.low-confidence {
-        background: #fee2e2;
-        border-color: #ef4444;
-    }
-    
-    .agent-status {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background: white;
-        border: 1px solid #e5e7eb;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        margin: 1rem 0;
-    }
-    
-    .agent-step {
-        text-align: center;
-        flex: 1;
-    }
-    
-    .agent-icon {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-weight: bold;
-        margin-bottom: 0.5rem;
-    }
-    
-    .agent-pending { background: #6b7280; }
-    .agent-running { background: #3b82f6; animation: pulse 2s infinite; }
-    .agent-completed { background: #10b981; }
-    .agent-failed { background: #ef4444; }
-    
-    @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.7; }
-    }
-    
-    .auto-mode-container {
-        background: #f8fafc;
-        border: 2px solid #3b82f6;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        margin: 1rem 0;
-        text-align: center;
-    }
-    
-    .auto-mode-active {
-        background: #d1fae5;
-        border-color: #10b981;
-    }
-    
-    .version-history {
-        max-height: 200px;
-        overflow-y: auto;
-        border: 1px solid #e5e7eb;
-        border-radius: 0.5rem;
-        padding: 0.5rem;
-    }
-    
-    .history-item {
-        padding: 0.5rem;
-        border-bottom: 1px solid #f3f4f6;
-        font-size: 0.85rem;
-    }
-    
-    .status-message {
-        padding: 1rem;
-        border-radius: 0.5rem;
-        margin: 1rem 0;
-        text-align: center;
-        font-weight: 500;
-    }
-    
-    .status-success { background: #d1fae5; color: #065f46; }
-    .status-info { background: #dbeafe; color: #1e40af; }
-    .status-warning { background: #fef3c7; color: #92400e; }
-    .status-error { background: #fee2e2; color: #991b1b; }
-    
-    .error-boundary {
-        background: #fee2e2;
-        border: 1px solid #fecaca;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        margin: 1rem 0;
-    }
-</style>
-""", unsafe_allow_html=True)
+    # Check API key
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key or api_key == "your_google_api_key_here":
+        st.error("⚠️ Set your GOOGLE_API_KEY in the .env file")
+        st.code("""
+# Create .env file with:
+GOOGLE_API_KEY=your_actual_google_api_key_here
+        """)
+        st.stop()
 
-# Initialize session state
-try:
-    initialize_session_state()
-except Exception as e:
-    st.error(f"Failed to initialize application: {str(e)}")
-    st.error("Please refresh the page to try again.")
-    st.stop()
-
-# Header
-st.markdown("""
-<div class="main-header">
-    <h1>Agentic AI Actions Co-pilot</h1>
-    <p>Intelligent Business Model Canvas Updates through Multi-Agent Analysis</p>
-    <p><em>Seedstars Senior AI Engineer Assignment - Option 2</em></p>
-</div>
-""", unsafe_allow_html=True)
-
-# API Key validation
-if not os.getenv("GOOGLE_API_KEY"):
-    st.error("Please set GOOGLE_API_KEY environment variable to run the demo")
-    st.error("Add your Google API key to the .env file or environment variables")
-    st.stop()
-
-# Auto-mode toggle
-try:
-    st.markdown('<div class="auto-mode-container' + (' auto-mode-active' if st.session_state.auto_mode else '') + '">', unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.session_state.auto_mode = st.toggle(
-            "Auto-mode",
-            value=st.session_state.auto_mode,
-            help="Automatically apply high-confidence changes (>80%)"
-        )
-        if st.session_state.auto_mode:
-            st.success("**AUTO-MODE ON**: High-confidence changes will be applied automatically")
-        else:
-            st.info("**MANUAL MODE**: Review all changes before applying")
-    st.markdown('</div>', unsafe_allow_html=True)
-except Exception as e:
-    st.error(f"Error in auto-mode toggle: {str(e)}")
-
-# Main layout
-try:
-    left_col, right_col = st.columns([1.2, 0.8])
-except Exception as e:
-    st.error(f"Error creating layout: {str(e)}")
-    st.stop()
-
-# Left Column - Business Model Canvas
-with left_col:
-    try:
-        st.subheader("Current Business Model Canvas")
-        
-        # Safely get business model
+    # Initialize session state
+    if 'bmc' not in st.session_state:
+        st.session_state.bmc = BusinessModelCanvas()
+    if 'ai' not in st.session_state:
         try:
-            bmc = st.session_state.business_model
-            if bmc is None:
-                st.error("Business model not loaded properly")
-                bmc = create_fallback_business_model()
-                st.session_state.business_model = bmc
+            st.session_state.ai = SimpleAI(api_key)
         except Exception as e:
-            st.error(f"Error accessing business model: {str(e)}")
-            bmc = create_fallback_business_model()
-            st.session_state.business_model = bmc
+            st.error(f"Failed to initialize AI: {e}")
+            st.stop()
+    if 'auto_mode' not in st.session_state:
+        st.session_state.auto_mode = False
+    if 'last_recommendation' not in st.session_state:
+        st.session_state.last_recommendation = None
+
+    # Auto-mode toggle
+    st.session_state.auto_mode = st.toggle(
+        "🚀 **Auto-mode**: Apply high-confidence changes (>80%) automatically", 
+        value=st.session_state.auto_mode,
+        help="When enabled, changes with >80% confidence will be applied automatically"
+    )
+
+    # Main layout
+    col1, col2 = st.columns([1.5, 1.2])
+    
+    # Left Column: Business Model Canvas Display
+    with col1:
+        st.subheader("📊 Current Business Model Canvas")
+        st.caption("Real-time view of your business model (SEMA AI Surveillance startup)")
         
-        sections = [
-            ('key_partnerships', 'Key Partnerships'),
-            ('key_activities', 'Key Activities'),
-            ('key_resources', 'Key Resources'),
-            ('value_propositions', 'Value Propositions'),
-            ('customer_relationships', 'Customer Relationships'),
-            ('channels', 'Channels'),
-            ('customer_segments', 'Customer Segments'),
-            ('cost_structure', 'Cost Structure'),
-            ('revenue_streams', 'Revenue Streams')
+        # BMC sections with icons
+        bmc_sections = [
+            ("key_partnerships", "🤝", "Key Partnerships"),
+            ("key_activities", "⚙️", "Key Activities"), 
+            ("key_resources", "💎", "Key Resources"),
+            ("value_propositions", "💡", "Value Propositions"),
+            ("customer_relationships", "🤝", "Customer Relationships"),
+            ("channels", "📡", "Channels"),
+            ("customer_segments", "👥", "Customer Segments"),
+            ("cost_structure", "💸", "Cost Structure"),
+            ("revenue_streams", "💰", "Revenue Streams")
         ]
         
+        # Display BMC in 3x3 grid layout
         for i in range(0, 9, 3):
-            try:
-                row_sections = sections[i:i+3]
-                cols = st.columns(3)
-                
-                for j, (section_key, section_title) in enumerate(row_sections):
-                    with cols[j]:
-                        st.markdown(f'<div class="bmc-section"><h4>{section_title}</h4>', unsafe_allow_html=True)
-                        
-                        try:
-                            items = getattr(bmc, section_key, [])
-                            
-                            if items and len(items) > 0:
-                                for item in items:
-                                    if item and isinstance(item, str) and item.strip():
-                                        safe_item = str(item).replace('<', '&lt;').replace('>', '&gt;')
-                                        st.markdown(f'<div class="bmc-item">{safe_item}</div>', unsafe_allow_html=True)
-                            else:
-                                st.markdown('<div style="color: #9ca3af; font-style: italic;">No items defined</div>', unsafe_allow_html=True)
-                                
-                        except Exception as e:
-                            st.markdown(f'<div style="color: #ef4444; font-style: italic;">Error loading {section_key}: {str(e)}</div>', unsafe_allow_html=True)
-                        
-                        st.markdown('</div>', unsafe_allow_html=True)
-                        
-            except Exception as e:
-                st.error(f"Error rendering BMC section {i}: {str(e)}")
-        
-        # Proposed Changes Preview
-        try:
-            if (hasattr(st.session_state, 'current_recommendation') and 
-                st.session_state.current_recommendation and 
-                st.session_state.current_recommendation.proposed_changes):
-                
-                st.subheader("Proposed Changes Preview")
-                
-                changes = st.session_state.current_recommendation.proposed_changes
-                try:
-                    formatted_changes = format_proposed_changes(changes)
-                    
-                    for i, change_data in enumerate(formatted_changes):
-                        try:
-                            confidence = change_data.get('confidence', '0%')
-                            confidence_value = float(confidence.strip('%'))
-                            confidence_class = ('high-confidence' if confidence_value >= 80 
-                                              else 'low-confidence' if confidence_value < 60 
-                                              else '')
-                            
-                            # Safely escape HTML content
-                            section = str(change_data.get('section', 'Unknown')).replace('<', '&lt;').replace('>', '&gt;')
-                            action = str(change_data.get('action', 'Unknown')).replace('<', '&lt;').replace('>', '&gt;')
-                            description = str(change_data.get('description', 'No description')).replace('<', '&lt;').replace('>', '&gt;')
-                            reasoning = str(change_data.get('reasoning', 'No reasoning')).replace('<', '&lt;').replace('>', '&gt;')
-                            
-                            st.markdown(f'''
-                            <div class="change-preview {confidence_class}">
-                                <strong>{section}</strong> - {action}<br>
-                                <strong>Change:</strong> {description}<br>
-                                <strong>Reasoning:</strong> {reasoning}<br>
-                                <strong>Confidence:</strong> {confidence}
-                            </div>
-                            ''', unsafe_allow_html=True)
-                            
-                        except Exception as e:
-                            st.error(f"Error rendering change {i}: {str(e)}")
-                            
-                except Exception as e:
-                    st.error(f"Error formatting proposed changes: {str(e)}")
-                    
-        except Exception as e:
-            st.error(f"Error in proposed changes section: {str(e)}")
+            cols = st.columns(3)
             
-    except Exception as e:
-        st.error(f"Critical error in left column: {str(e)}")
+            for j, (section_key, icon, section_title) in enumerate(bmc_sections[i:i+3]):
+                with cols[j]:
+                    st.markdown(f"**{icon} {section_title}**")
+                    
+                    items = st.session_state.bmc.get_section(section_key)
+                    if items:
+                        for item in items:
+                            st.markdown(f"• {item}")
+                    else:
+                        st.markdown("*No items defined*")
+                    
+                    st.markdown("")  # Add spacing
 
-# Right Column - Action Processing
-with right_col:
-    try:
-        st.subheader("Action Outcome Processing")
+    # Right Column: Action Input & Analysis
+    with col2:
+        st.subheader("🎯 Log Completed Action")
         
-        # Action Input Section
-        try:
-            with st.container():
-                st.write("**Enter Completed Action:**")
-                
-                demo_option = st.radio(
-                    "Choose input method:",
-                    ["Sample Action", "Custom Action"],
-                    horizontal=True
-                )
-                
-                action_data = {}
-                
-                if demo_option == "Sample Action":
-                    try:
-                        action_titles = get_action_titles()
-                        selected_title = st.selectbox("Select sample action:", action_titles)
-                        
-                        if selected_title:
-                            selected_action = get_sample_action_by_title(selected_title)
-                            
-                            with st.expander("View Action Details"):
-                                st.write(f"**Title:** {selected_action.title}")
-                                st.write(f"**Outcome:** {selected_action.outcome.value}")
-                                st.write(f"**Description:** {selected_action.description}")
-                                st.text_area("Results:", selected_action.results_data, height=100, disabled=True)
-                            
-                            action_data = safe_get_action_data(demo_option, selected_title)
-                        
-                    except Exception as e:
-                        st.error(f"Error loading sample actions: {str(e)}")
-                        action_data = {}
-                        
-                else:
-                    try:
-                        action_title = st.text_input("Action Title:", placeholder="e.g., Customer Survey in Lagos")
-                        action_description = st.text_area("Description:", placeholder="What did you do?", height=60)
-                        action_outcome = st.selectbox("Outcome:", ["successful", "failed", "inconclusive"])
-                        action_results = st.text_area("Results & Data:", placeholder="What were the findings?", height=80)
-                        
-                        action_data = {
-                            "title": action_title,
-                            "description": action_description,
-                            "outcome": action_outcome,
-                            "results_data": action_results
-                        }
-                    except Exception as e:
-                        st.error(f"Error in custom action form: {str(e)}")
-                        action_data = {}
-                        
-        except Exception as e:
-            st.error(f"Error in action input section: {str(e)}")
-            action_data = {}
+        # Sample action selector
+        sample_actions = get_sample_actions()
+        use_sample = st.selectbox(
+            "Choose sample action or create custom:",
+            ["Custom Action"] + list(sample_actions.keys())
+        )
         
-        # Agent Status Display
-        try:
-            if st.session_state.processing:
-                st.markdown('<div class="agent-status">', unsafe_allow_html=True)
-                agents = [
-                    ("1", "Action\nDetection", st.session_state.processing_status.get('action_detection', 'pending')),
-                    ("2", "Outcome\nAnalysis", st.session_state.processing_status.get('outcome_analysis', 'pending')),
-                    ("3", "Canvas\nUpdate", st.session_state.processing_status.get('canvas_update', 'pending')),
-                    ("4", "Next\nSteps", st.session_state.processing_status.get('next_step', 'pending'))
-                ]
-                
-                for number, name, status in agents:
-                    st.markdown(f'''
-                    <div class="agent-step">
-                        <div class="agent-icon agent-{status}">{number}</div>
-                        <div style="font-size: 0.8rem; font-weight: 500;">{name}</div>
-                    </div>
-                    ''', unsafe_allow_html=True)
-                
-                st.markdown('</div>', unsafe_allow_html=True)
-        except Exception as e:
-            st.error(f"Error displaying agent status: {str(e)}")
-        
-        # Status Messages
-        try:
-            if hasattr(st.session_state, 'status_message') and st.session_state.status_message:
-                message_type, message_text = st.session_state.status_message
-                safe_message = str(message_text).replace('<', '&lt;').replace('>', '&gt;')
-                st.markdown(f'<div class="status-message status-{message_type}">{safe_message}</div>', unsafe_allow_html=True)
-        except Exception as e:
-            st.error(f"Error displaying status message: {str(e)}")
-        
-        # Process Action Button
-        try:
-            process_disabled = (
-                st.session_state.processing or 
-                not action_data.get("title") or 
-                not action_data.get("results_data")
-            )
+        if use_sample != "Custom Action":
+            # Use selected sample action
+            action_data = sample_actions[use_sample]
             
-            if st.button("Process Action", disabled=process_disabled, use_container_width=True):
-                try:
-                    # Check for duplicate processing (idempotent behavior)
-                    action_hash = generate_action_hash(action_data)
-                    
-                    if action_hash in st.session_state.processed_actions:
-                        st.session_state.status_message = ("warning", "This action has already been processed (idempotent behavior)")
-                        st.rerun()
-                    
-                    # Ensure orchestrator is available
-                    if not ensure_orchestrator():
-                        st.session_state.status_message = ("error", "Failed to initialize AI orchestrator. Check your API key.")
-                        st.rerun()
-                    
-                    # Start processing
-                    st.session_state.processing = True
-                    st.session_state.processing_status = {
-                        'action_detection': 'running',
-                        'outcome_analysis': 'pending',
-                        'canvas_update': 'pending',
-                        'next_step': 'pending'
-                    }
-                    st.session_state.status_message = ("info", "Starting 4-agent analysis workflow...")
-                    st.rerun()
-                    
-                except Exception as e:
-                    st.error(f"Error starting processing: {str(e)}")
-                    st.session_state.processing = False
-                    
-        except Exception as e:
-            st.error(f"Error in process button section: {str(e)}")
-        
-        # Processing Logic
-        if st.session_state.processing:
-            try:
-                import concurrent.futures
-                
-                def run_async_workflow():
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    try:
-                        return loop.run_until_complete(
-                            safe_process_action_with_orchestrator(action_data, st.session_state.business_model)
-                        )
-                    finally:
-                        loop.close()
-                
-                # Execute with timeout
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(run_async_workflow)
-                    
-                    try:
-                        recommendation = future.result(timeout=120)  # 2 minute timeout
-                        
-                        # Processing completed successfully
-                        st.session_state.current_recommendation = recommendation
-                        st.session_state.processing = False
-                        
-                        # Mark as processed for idempotent behavior
-                        action_hash = generate_action_hash(action_data)
-                        st.session_state.processed_actions.add(action_hash)
-                        
-                        # Handle auto-mode
-                        if st.session_state.auto_mode and recommendation.proposed_changes:
-                            high_confidence_changes = [
-                                change for change in recommendation.proposed_changes 
-                                if change.confidence_score >= 0.8
-                            ]
-                            
-                            if high_confidence_changes:
-                                if safe_apply_changes(high_confidence_changes, auto_applied=True):
-                                    st.session_state.status_message = ("success", f"Auto-applied {len(high_confidence_changes)} high-confidence changes")
-                                else:
-                                    st.session_state.status_message = ("error", "Failed to auto-apply changes")
-                            else:
-                                st.session_state.status_message = ("info", "Analysis complete. No high-confidence changes for auto-mode.")
-                        else:
-                            st.session_state.status_message = ("success", "Analysis complete! Review proposed changes below.")
-                        
-                        st.rerun()
-                        
-                    except concurrent.futures.TimeoutError:
-                        st.session_state.processing = False
-                        st.session_state.status_message = ("error", "Processing timeout - please try again")
-                        st.rerun()
-                    except Exception as e:
-                        st.session_state.processing = False
-                        st.session_state.status_message = ("error", f"Processing failed: {str(e)}")
-                        st.rerun()
+            st.info(f"**Sample Action Selected:** {action_data['title']}")
             
-            except Exception as e:
-                st.session_state.processing = False
-                st.session_state.status_message = ("error", f"Critical processing error: {str(e)}")
-                st.rerun()
+            with st.expander("📋 View Action Details", expanded=False):
+                st.write(f"**Outcome:** {action_data['outcome']}")
+                st.write(f"**Description:** {action_data['description']}")
+                st.write("**Results:**")
+                st.code(action_data['results'])
         
-        # Action Controls
-        try:
-            if (hasattr(st.session_state, 'current_recommendation') and 
-                st.session_state.current_recommendation and 
-                not st.session_state.processing):
+        else:
+            # Custom action form
+            with st.form("custom_action_form"):
+                st.write("**Create Custom Action:**")
                 
-                changes = st.session_state.current_recommendation.proposed_changes
+                action_data = {
+                    "title": st.text_input(
+                        "Action/Experiment Title", 
+                        placeholder="e.g., Customer interviews in Lagos"
+                    ),
+                    "outcome": st.selectbox("Outcome", ["Successful", "Failed", "Inconclusive"]),
+                    "description": st.text_area(
+                        "What did you do?", 
+                        placeholder="Describe the action/experiment you completed"
+                    ),
+                    "results": st.text_area(
+                        "Results & Key Learnings", 
+                        placeholder="What did you learn? Include metrics, feedback, insights..."
+                    )
+                }
                 
-                if changes and not st.session_state.auto_mode:
-                    st.subheader("Controls")
-                    
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if st.button("Apply All Changes", use_container_width=True):
-                            if safe_apply_changes(changes, auto_applied=False):
-                                st.session_state.status_message = ("success", f"Applied {len(changes)} changes successfully!")
-                            else:
-                                st.session_state.status_message = ("error", "Failed to apply changes")
-                            st.rerun()
-                    
-                    with col2:
-                        if st.button("Reject Changes", use_container_width=True):
-                            st.session_state.current_recommendation = None
-                            st.session_state.status_message = ("info", "Changes rejected")
-                            st.rerun()
+                form_submitted = st.form_submit_button("📝 Use Custom Action")
                 
-                # Next Actions
-                if hasattr(st.session_state.current_recommendation, 'next_actions') and st.session_state.current_recommendation.next_actions:
-                    st.subheader("Suggested Next Actions")
-                    for i, action in enumerate(st.session_state.current_recommendation.next_actions[:3], 1):
-                        safe_action = str(action).replace('<', '&lt;').replace('>', '&gt;')
-                        st.write(f"**{i}.** {safe_action}")
-                        
-        except Exception as e:
-            st.error(f"Error in action controls section: {str(e)}")
+                if form_submitted and not all([action_data["title"], action_data["description"], action_data["results"]]):
+                    st.error("Please fill in all fields for custom action")
+                    st.stop()
         
-        # Version History
-        try:
-            st.subheader("Version History")
-            
-            if hasattr(st.session_state, 'change_history') and st.session_state.change_history:
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("Undo Last Change", disabled=len(st.session_state.change_history) == 0):
-                        if safe_undo_last_change():
-                            st.session_state.status_message = ("success", "Undid last change")
-                        else:
-                            st.session_state.status_message = ("error", "Failed to undo change")
-                        st.rerun()
-                
-                with col2:
-                    st.button("Redo", disabled=True, help="Redo functionality available")
-                
-                st.markdown('<div class="version-history">', unsafe_allow_html=True)
-                try:
-                    for i, history in enumerate(reversed(st.session_state.change_history[-5:]), 1):
-                        timestamp = history.timestamp.strftime("%H:%M:%S")
-                        change_count = len(history.changes_applied)
-                        auto_text = "Auto" if history.auto_applied else "Manual"
-                        
-                        st.markdown(f'''
-                        <div class="history-item">
-                            <strong>#{len(st.session_state.change_history) - i + 1}</strong> {timestamp} - 
-                            {change_count} change(s) {auto_text}
-                        </div>
-                        ''', unsafe_allow_html=True)
-                except Exception as e:
-                    st.error(f"Error displaying history: {str(e)}")
-                    
-                st.markdown('</div>', unsafe_allow_html=True)
+        # Analyze Action Button
+        if st.button("🚀 Analyze Action & Update BMC", use_container_width=True, type="primary"):
+            if not action_data.get("title") or not action_data.get("results"):
+                st.error("Action title and results are required")
             else:
-                st.write("*No changes applied yet*")
-                
-        except Exception as e:
-            st.error(f"Error in version history section: {str(e)}")
-            
-    except Exception as e:
-        st.error(f"Critical error in right column: {str(e)}")
+                with st.spinner("🧠 AI analyzing your action..."):
+                    # Get AI recommendation
+                    recommendation = st.session_state.ai.analyze_action(action_data, st.session_state.bmc)
+                    st.session_state.last_recommendation = recommendation
+                    
+                    # Display AI Analysis
+                    st.success("✅ Analysis Complete!")
+                    
+                    with st.expander("🧠 AI Analysis", expanded=True):
+                        st.write(recommendation["analysis"])
+                    
+                    # Show proposed changes
+                    if recommendation["changes"]:
+                        st.subheader("📝 Proposed BMC Updates")
+                        
+                        high_confidence_changes = []
+                        changes_applied = 0
+                        
+                        for i, change in enumerate(recommendation["changes"]):
+                            confidence = change.get("confidence", 0)
+                            
+                            # Confidence indicator
+                            if confidence >= 0.9:
+                                confidence_color = "🟢"
+                                confidence_label = "Very High"
+                            elif confidence >= 0.8:
+                                confidence_color = "🟢"
+                                confidence_label = "High"
+                                high_confidence_changes.append(change)
+                            elif confidence >= 0.7:
+                                confidence_color = "🟡"
+                                confidence_label = "Medium"
+                            else:
+                                confidence_color = "🔴"
+                                confidence_label = "Low"
+                            
+                            # Display change
+                            section_display = change['section'].replace('_', ' ').title()
+                            
+                            st.markdown(f"""
+                            **{confidence_color} {section_display}** - {change['type'].title()} ({confidence_label} confidence: {confidence:.0%})
+                            
+                            **Change:** {change['new']}
+                            
+                            **Reasoning:** {change['reason']}
+                            """)
+                            
+                            st.markdown("---")
+                        
+                        # Auto-mode application
+                        if st.session_state.auto_mode and high_confidence_changes:
+                            st.info(f"🚀 **Auto-mode Active**: Applying {len(high_confidence_changes)} high-confidence changes...")
+                            
+                            for change in high_confidence_changes:
+                                section = change["section"]
+                                current_items = st.session_state.bmc.get_section(section)
+                                
+                                if change["type"] == "add":
+                                    if change["new"] not in current_items:
+                                        current_items.append(change["new"])
+                                        changes_applied += 1
+                                        
+                                elif change["type"] == "modify" and change.get("current"):
+                                    try:
+                                        idx = current_items.index(change["current"])
+                                        current_items[idx] = change["new"]
+                                        changes_applied += 1
+                                    except ValueError:
+                                        current_items.append(change["new"])
+                                        changes_applied += 1
+                                        
+                                elif change["type"] == "remove" and change.get("current"):
+                                    try:
+                                        current_items.remove(change["current"])
+                                        changes_applied += 1
+                                    except ValueError:
+                                        pass
+                                
+                                st.session_state.bmc.update_section(section, current_items)
+                            
+                            if changes_applied > 0:
+                                st.success(f"✅ Auto-applied {changes_applied} high-confidence changes!")
+                                st.rerun()
+                        
+                        # Manual controls (if auto-mode is off or there are non-auto changes)
+                        elif not st.session_state.auto_mode:
+                            col_apply, col_reject = st.columns(2)
+                            
+                            with col_apply:
+                                if st.button("✅ Apply All Changes", use_container_width=True):
+                                    for change in recommendation["changes"]:
+                                        if change.get("confidence", 0) >= 0.6:  # Apply medium+ confidence
+                                            section = change["section"]
+                                            current_items = st.session_state.bmc.get_section(section)
+                                            
+                                            if change["type"] == "add":
+                                                if change["new"] not in current_items:
+                                                    current_items.append(change["new"])
+                                                    changes_applied += 1
+                                            elif change["type"] == "modify" and change.get("current"):
+                                                try:
+                                                    idx = current_items.index(change["current"])
+                                                    current_items[idx] = change["new"]
+                                                    changes_applied += 1
+                                                except ValueError:
+                                                    current_items.append(change["new"])
+                                                    changes_applied += 1
+                                            elif change["type"] == "remove" and change.get("current"):
+                                                try:
+                                                    current_items.remove(change["current"])
+                                                    changes_applied += 1
+                                                except ValueError:
+                                                    pass
+                                            
+                                            st.session_state.bmc.update_section(section, current_items)
+                                    
+                                    st.success(f"✅ Applied {changes_applied} changes to your business model!")
+                                    st.rerun()
+                            
+                            with col_reject:
+                                if st.button("❌ Reject Changes", use_container_width=True):
+                                    st.info("Changes rejected. BMC remains unchanged.")
+                    
+                    else:
+                        st.info("No BMC changes suggested based on this action.")
+                    
+                    # Show next experiments
+                    if recommendation.get("next_experiments"):
+                        st.subheader("🔬 Suggested Next Experiments")
+                        for i, experiment in enumerate(recommendation["next_experiments"], 1):
+                            st.write(f"**{i}.** {experiment}")
 
-# Footer
-try:
+    # Footer
     st.markdown("---")
     st.markdown("""
-    <div style="text-align: center; color: #6b7280; font-size: 0.9rem;">
-        <strong>Seedstars Senior AI Engineer Assignment</strong><br>
-        Demonstrating: Real AI Processing • Auto-mode • Idempotent Behavior • Version Control • BMC Updates
+    <div style="text-align: center; color: #666; font-size: 0.9rem;">
+        <strong>SIGMA Agentic AI Actions Co-pilot</strong> | 
+        Seedstars Senior AI Engineer Assignment | 
+        Demonstrates: Action Analysis → BMC Updates → Next Steps
     </div>
     """, unsafe_allow_html=True)
-except Exception as e:
-    st.error(f"Error in footer: {str(e)}")
+
+if __name__ == "__main__":
+    main()
