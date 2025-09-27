@@ -1,5 +1,6 @@
 """
 Reusable UI Components for SIGMA Agentic AI Actions Co-pilot
+Enhanced with Strategic Next Steps Display
 """
 
 import streamlit as st
@@ -55,6 +56,129 @@ def display_quality_indicator(quality):
                     st.write(f"• {issue}")
 
 
+def display_priority_badge(priority: str):
+    """Display priority badge with appropriate color"""
+    if priority.lower() == "high":
+        st.markdown(
+            '<span style="background-color: #ff4b4b; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold;">🔥 HIGH</span>',
+            unsafe_allow_html=True
+        )
+    elif priority.lower() == "medium":
+        st.markdown(
+            '<span style="background-color: #ffa500; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold;">⚡ MEDIUM</span>',
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            '<span style="background-color: #00cc00; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold;">✅ LOW</span>',
+            unsafe_allow_html=True
+        )
+
+
+def display_difficulty_indicator(difficulty: str):
+    """Display difficulty indicator"""
+    if difficulty.lower() == "hard":
+        st.markdown("🔴 Hard")
+    elif difficulty.lower() == "medium":
+        st.markdown("🟡 Medium")
+    else:
+        st.markdown("🟢 Easy")
+
+
+def display_enhanced_next_steps(next_steps: List[Dict[str, Any]]):
+    """Display enhanced next steps with rich formatting and implementation guidance"""
+    if not next_steps:
+        st.info("No specific next steps provided.")
+        return
+    
+    st.subheader("🎯 Strategic Next Steps")
+    st.caption("AI-generated action plan based on your experiment outcome")
+    
+    # Sort by priority (high first)
+    priority_order = {"high": 1, "medium": 2, "low": 3}
+    sorted_steps = sorted(next_steps, key=lambda x: priority_order.get(x.get('priority', 'medium').lower(), 2))
+    
+    for i, step in enumerate(sorted_steps, 1):
+        # Handle both dict and string formats
+        if isinstance(step, str):
+            st.write(f"**{i}.** {step}")
+            continue
+        
+        # Rich card layout for detailed next steps
+        with st.container():
+            # Create card-like appearance
+            st.markdown(f"""
+            <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; margin: 8px 0; background-color: #fafafa;">
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Header with title and badges
+            col1, col2, col3 = st.columns([3, 1, 1])
+            
+            with col1:
+                st.markdown(f"### {i}. {step.get('title', 'Next Step')}")
+            
+            with col2:
+                display_priority_badge(step.get('priority', 'medium'))
+            
+            with col3:
+                display_difficulty_indicator(step.get('difficulty', 'medium'))
+            
+            # Description
+            description = step.get('description', '')
+            if description:
+                st.write(description)
+            
+            # Key details in columns
+            detail_col1, detail_col2, detail_col3 = st.columns(3)
+            
+            with detail_col1:
+                timeline = step.get('timeline', 'TBD')
+                st.markdown(f"**⏱️ Timeline:** {timeline}")
+                
+                stage = step.get('stage', 'validation')
+                st.markdown(f"**🎭 Stage:** {stage.title()}")
+            
+            with detail_col2:
+                resources = step.get('resources_needed', [])
+                if resources:
+                    st.markdown("**💰 Resources:**")
+                    for resource in resources[:3]:  # Show max 3
+                        st.markdown(f"• {resource}")
+                    if len(resources) > 3:
+                        st.markdown(f"• +{len(resources) - 3} more...")
+            
+            with detail_col3:
+                metrics = step.get('success_metrics', [])
+                if metrics:
+                    st.markdown("**📊 Success Metrics:**")
+                    for metric in metrics[:3]:  # Show max 3
+                        st.markdown(f"• {metric}")
+                    if len(metrics) > 3:
+                        st.markdown(f"• +{len(metrics) - 3} more...")
+            
+            # Implementation steps in expandable section
+            implementation_steps = step.get('implementation_steps', [])
+            if implementation_steps:
+                with st.expander(f"📋 Implementation Guide for Step {i}", expanded=False):
+                    st.markdown("**Step-by-step implementation:**")
+                    for j, impl_step in enumerate(implementation_steps, 1):
+                        st.markdown(f"**{j}.** {impl_step}")
+                    
+                    # Additional resources if available
+                    if len(resources) > 3:
+                        st.markdown("**Additional Resources Needed:**")
+                        for resource in resources[3:]:
+                            st.markdown(f"• {resource}")
+                    
+                    if len(metrics) > 3:
+                        st.markdown("**Additional Success Metrics:**")
+                        for metric in metrics[3:]:
+                            st.markdown(f"• {metric}")
+            
+            st.markdown("---")
+
+
 def preview_change(change: Dict[str, Any], current_items: List[str]) -> Dict[str, List[str]]:
     """Generate before/after preview for a proposed change"""
     before = current_items.copy()
@@ -82,7 +206,7 @@ def display_change_preview(changes: List[Dict[str, Any]], bmc: BusinessModelCanv
     if not changes:
         return
     
-    st.subheader("Preview Changes")
+    st.subheader("🔄 Preview Changes")
     st.caption("See how your Business Model will look after applying these changes")
     
     for i, change in enumerate(changes):
@@ -123,7 +247,16 @@ def display_change_preview(changes: List[Dict[str, Any]], bmc: BusinessModelCanv
 def render_business_canvas(bmc: BusinessModelCanvas):
     """Render the business model canvas in a clean layout"""
     st.subheader("Your Current Business Model")
-    st.caption("Based on your business design and AI recommendations")
+    
+    # Show business stage and completion
+    stage = bmc.get_business_stage()
+    completion = bmc.get_completeness_score()
+    
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        st.caption(f"Stage: **{stage.title()}** | Completion: **{completion:.0%}**")
+    with col2:
+        st.progress(completion)
     
     sections = bmc.get_all_sections()
     
@@ -196,7 +329,25 @@ def render_sidebar_info(metrics, bmc: BusinessModelCanvas):
         if bmc.is_complete():
             st.markdown("---")
             st.subheader("Your Business")
+            
+            # Business stage indicator
+            stage = bmc.get_business_stage()
+            risk_assessment = bmc.get_risk_assessment()
+            
+            if stage == "validation":
+                st.markdown("🔬 **Stage:** Discovery/Validation")
+            elif stage == "growth":
+                st.markdown("📈 **Stage:** Growth")
+            else:
+                st.markdown("🚀 **Stage:** Scale")
+            
             st.caption(bmc.get_business_summary())
+            
+            # Risk indicator
+            if "high" in risk_assessment.lower():
+                st.warning(f"⚠️ {risk_assessment}")
+            else:
+                st.info(f"✅ {risk_assessment}")
             
             # Completion score
             completion = bmc.get_completeness_score()
@@ -347,6 +498,6 @@ def render_footer():
     <div style="text-align: center; color: #666; font-size: 0.9rem; margin-top: 40px;">
         <strong>SIGMA Agentic AI Actions Co-pilot</strong> | 
         Seedstars Senior AI Engineer Assignment | 
-        Enhanced: Business Design Phase, Quality Validation, Modular Architecture
+        Enhanced: Strategic Next Steps, Business Intelligence, Quality Validation
     </div>
     """, unsafe_allow_html=True)

@@ -1,5 +1,6 @@
 """
 AI Engine with Quality Validation for SIGMA Agentic Actions Co-pilot
+Enhanced with Strategic Next Steps Generation
 """
 
 import json
@@ -85,6 +86,12 @@ class AIQualityValidator:
         if any(char.isdigit() for char in text_content):
             score += 0.2
         
+        # Reward detailed next steps
+        next_steps = response.get('next_steps', [])
+        if next_steps and len(next_steps) > 0:
+            detailed_steps = sum(1 for step in next_steps if len(str(step)) > 100)
+            score += min(detailed_steps * 0.1, 0.3)
+        
         return max(0.0, min(1.0, score))
     
     def _score_evidence_alignment(self, response: Dict[str, Any], action_data: Dict[str, Any]) -> float:
@@ -115,25 +122,29 @@ class AIQualityValidator:
         
         # Check if changes are specific and implementable
         changes = response.get('changes', [])
-        if not changes:
-            return 0.2
+        if changes:
+            for change in changes:
+                new_value = change.get('new', '')
+                reasoning = change.get('reason', '')
+                
+                # Reward specific, measurable changes
+                if len(new_value) > 20:
+                    score += 0.05
+                
+                # Reward clear reasoning
+                if len(reasoning) > 30:
+                    score += 0.05
         
-        for change in changes:
-            new_value = change.get('new', '')
-            reasoning = change.get('reason', '')
-            
-            # Reward specific, measurable changes
-            if len(new_value) > 20:
-                score += 0.1
-            
-            # Reward clear reasoning
-            if len(reasoning) > 30:
-                score += 0.05
-        
-        # Check next experiments
-        experiments = response.get('next_experiments', [])
-        for exp in experiments:
-            if len(exp) > 20:
+        # Check next steps quality
+        next_steps = response.get('next_steps', [])
+        for step in next_steps:
+            if isinstance(step, dict):
+                # Reward structured next steps with implementation details
+                if step.get('timeline') and step.get('resources_needed'):
+                    score += 0.1
+                if step.get('success_metrics'):
+                    score += 0.1
+            elif len(str(step)) > 50:
                 score += 0.05
         
         return min(1.0, score)
@@ -158,8 +169,8 @@ class AIQualityValidator:
             issues.append("Missing analysis section")
         if not response.get('changes'):
             issues.append("No changes proposed")
-        if not response.get('next_experiments'):
-            issues.append("No next experiments suggested")
+        if not response.get('next_steps'):
+            issues.append("No next steps suggested")
         
         # Check for very low confidence
         changes = response.get('changes', [])
@@ -171,6 +182,13 @@ class AIQualityValidator:
         analysis = response.get('analysis', '')
         if len(analysis) < 50:
             issues.append("Analysis too brief")
+        
+        # Check next steps quality
+        next_steps = response.get('next_steps', [])
+        if next_steps:
+            generic_steps = sum(1 for step in next_steps if len(str(step)) < 30)
+            if generic_steps > len(next_steps) * 0.5:
+                issues.append("Next steps too generic")
         
         return issues
     
@@ -195,7 +213,7 @@ Please provide a better analysis that:
 2. References specific data from the action results
 3. Provides actionable, implementable recommendations
 4. Has clear reasoning for each suggested change
-5. Includes specific next experiments with measurable outcomes
+5. Includes detailed next steps with timelines, resources, and success metrics
 
 Original response to improve:
 {json.dumps(original_response, indent=2)}
@@ -222,7 +240,7 @@ Provide an improved version that addresses these quality issues."""
 
 
 class QualityEnhancedAI(LoggingMixin):
-    """AI engine with response quality validation and improvement"""
+    """AI engine with response quality validation and enhanced next steps generation"""
     
     def __init__(self, api_key: str):
         """Initialize with Google Gemini and quality validation"""
@@ -234,7 +252,7 @@ class QualityEnhancedAI(LoggingMixin):
                 api_key=api_key,
                 model="gemini-2.0-flash",
                 temperature=0.3,
-                max_output_tokens=1500,
+                max_output_tokens=2000,  # Increased for detailed next steps
                 timeout=30
             )
             self.SystemMessage = SystemMessage
@@ -245,7 +263,8 @@ class QualityEnhancedAI(LoggingMixin):
             # Log successful AI initialization
             self.log_ai_performance("ai_initialization", 0, True, {
                 "model": "gemini-2.0-flash",
-                "quality_validation": True
+                "quality_validation": True,
+                "enhanced_next_steps": True
             })
             
         except ImportError as e:
@@ -263,6 +282,7 @@ class QualityEnhancedAI(LoggingMixin):
             "analysis_id": analysis_id,
             "action_title": action_data.get('title', 'Unknown'),
             "action_outcome": action_data.get('outcome', 'Unknown'),
+            "business_stage": bmc.get_business_stage(),
             "max_retries": self.max_retries
         })
         
@@ -304,7 +324,7 @@ class QualityEnhancedAI(LoggingMixin):
                 
                 if attempt == self.max_retries:
                     # Return fallback response on final failure
-                    response = self._create_fallback_response(action_data)
+                    response = self._create_fallback_response(action_data, bmc)
                     quality = ResponseQuality(
                         overall_score=0.3,
                         specificity_score=0.3,
@@ -327,63 +347,102 @@ class QualityEnhancedAI(LoggingMixin):
         return response, quality
 
     def _get_initial_response(self, action_data: Dict[str, Any], bmc: BusinessModelCanvas, analysis_id: str) -> Dict[str, Any]:
-        """Get initial AI response with enhanced prompting"""
+        """Get initial AI response with enhanced prompting for strategic next steps"""
         
-        # Enhanced system prompt
-        system_prompt = """You are SIGMA's AI co-pilot helping entrepreneurs validate business assumptions through experiments.
+        # Get business context
+        business_stage = bmc.get_business_stage()
+        business_context = bmc.get_enhanced_business_context()
+        risk_assessment = bmc.get_risk_assessment()
+        
+        # Enhanced system prompt with outcome-specific next step generation
+        system_prompt = f"""You are SIGMA's AI co-pilot helping entrepreneurs validate business assumptions through experiments.
 
-Analyze completed actions and suggest specific Business Model updates based on what was learned.
+Your role is to:
+1. Analyze completed actions and suggest specific Business Model updates
+2. Generate strategic, implementable next steps based on the outcome
+3. Provide business intelligence based on current stage and risk assessment
 
-IMPORTANT: Focus only on these 4 business model sections:
+BUSINESS INTELLIGENCE CONTEXT:
+- Current Stage: {business_stage}
+- Risk Assessment: {risk_assessment}
+
+OUTCOME-SPECIFIC STRATEGY:
+- SUCCESSFUL outcomes → Scale/optimize/expand recommendations with growth metrics
+- FAILED outcomes → Pivot/alternative approaches with risk mitigation strategies  
+- INCONCLUSIVE outcomes → Clarification experiments with better data collection methods
+
+FOCUS ONLY on these 4 business model sections:
 - customer_segments
 - value_propositions  
 - business_models
 - market_opportunities
 
 Return ONLY valid JSON in this exact format:
-{
-    "analysis": "2-3 sentence analysis of what this action outcome means for the business model",
+{{
+    "analysis": "2-3 sentence analysis of what this action outcome means for the business model and strategic implications",
     "changes": [
-        {
+        {{
             "section": "customer_segments|value_propositions|business_models|market_opportunities",
             "type": "add|modify|remove", 
             "current": "existing item being modified/removed (null for add operations)",
             "new": "new item to add or replacement text",
             "reason": "clear explanation of why this change makes sense based on the action outcome",
             "confidence": 0.85
-        }
+        }}
     ],
-    "next_experiments": [
-        "Specific actionable next experiment to validate further assumptions",
-        "Another logical next step to build on these learnings"
+    "next_steps": [
+        {{
+            "title": "Specific actionable title (e.g., 'Run A/B pricing test with target segment')",
+            "description": "Detailed description of what to do and why",
+            "timeline": "Specific timeframe (e.g., '2-3 weeks', '1 month')",
+            "resources_needed": ["Specific resources like '$500 budget', '8 hours dev time', 'Marketing manager']",
+            "success_metrics": ["Measurable outcomes like '<15% churn rate', '>60% conversion rate', '$2K+ revenue']",
+            "priority": "high|medium|low",
+            "difficulty": "easy|medium|hard",
+            "stage": "validation|growth|scale",
+            "implementation_steps": ["Step 1: Specific action", "Step 2: Next action", "Step 3: Final action"]
+        }}
     ]
-}
+}}
+
+NEXT STEPS REQUIREMENTS:
+- Minimum 2, maximum 4 next steps
+- Each must be immediately actionable with clear implementation path
+- Include specific timelines (not vague like "soon")  
+- List exact resources needed (budget, time, skills)
+- Define measurable success criteria with target numbers
+- Prioritize based on impact vs effort for current business stage
+- Match difficulty to entrepreneur's likely capabilities
+- Ensure logical sequence building on current learnings
+
+STAGE-SPECIFIC FOCUS:
+- Discovery/Validation: Customer development, assumption testing, MVP validation
+- Growth: Channel optimization, retention improvement, scaling experiments
+- Scale: Market expansion, operational efficiency, competitive differentiation
 
 Rules:
 - Only suggest changes with confidence > 0.6
-- Focus on what the action outcome actually validates or invalidates
-- Be specific - avoid generic suggestions
-- Limit to 3-4 most important changes maximum"""
+- Focus on what the action outcome actually validates or invalidates  
+- Be specific - avoid generic business language
+- Make next steps feel like strategic guidance from an experienced advisor
+- Ensure recommendations build logically on the current action outcome"""
 
-        # Create business context
-        business_context = f"""Current Business Model:
-{bmc.get_business_summary()}
-
-Business Details:
-Customer Segments: {', '.join(bmc.customer_segments) if bmc.customer_segments else 'Not defined'}
-Value Propositions: {', '.join(bmc.value_propositions) if bmc.value_propositions else 'Not defined'}
-Business Models: {', '.join(bmc.business_models) if bmc.business_models else 'Not defined'}
-Market Opportunities: {', '.join(bmc.market_opportunities) if bmc.market_opportunities else 'Not defined'}"""
-
+        # Create comprehensive business context
         user_prompt = f"""COMPLETED ACTION/EXPERIMENT:
 Title: {action_data['title']}
 Outcome: {action_data['outcome']} 
 Description: {action_data['description']}
 Key Results: {action_data['results']}
 
+CURRENT BUSINESS CONTEXT:
 {business_context}
 
-Based on this action outcome, what specific updates should be made to the Business Model? What assumptions were validated or invalidated?
+Based on this action outcome and business context, provide:
+1. Strategic analysis of implications
+2. Specific business model updates  
+3. Detailed next steps with implementation guidance
+
+Focus on actionable insights that move the business forward based on the {action_data['outcome']} outcome.
 
 Return only the JSON response."""
 
@@ -401,7 +460,8 @@ Return only the JSON response."""
         self.log_ai_performance("quality_api_call", int(api_duration), True, {
             "analysis_id": analysis_id,
             "response_length": len(response.content),
-            "model": "gemini-2.0-flash"
+            "model": "gemini-2.0-flash",
+            "business_stage": business_stage
         })
         
         return self._parse_response(response.content)
@@ -420,9 +480,11 @@ Return only the JSON response."""
             OUTCOME: {action_data['outcome']}
             RESULTS: {action_data['results']}
             
-            BUSINESS CONTEXT: {bmc.get_business_summary()}
+            BUSINESS CONTEXT: {bmc.get_enhanced_business_context()}
+            BUSINESS STAGE: {bmc.get_business_stage()}
             
             Provide an improved analysis addressing the quality issues mentioned.
+            Include detailed next steps with timelines, resources, and success metrics.
             Return only valid JSON.
             """)
         ]
@@ -468,19 +530,61 @@ Return only the JSON response."""
             result['analysis'] = "Analysis completed successfully"
         if 'changes' not in result:
             result['changes'] = []
-        if 'next_experiments' not in result:
-            result['next_experiments'] = ["Continue testing current approach"]
+        if 'next_steps' not in result:
+            result['next_steps'] = [
+                {
+                    "title": "Continue current approach",
+                    "description": "Build on learnings from this action",
+                    "timeline": "1-2 weeks",
+                    "resources_needed": ["Team time"],
+                    "success_metrics": ["Progress toward goals"],
+                    "priority": "medium",
+                    "difficulty": "easy",
+                    "stage": "validation",
+                    "implementation_steps": ["Review results", "Plan next steps"]
+                }
+            ]
         
         return result
 
-    def _create_fallback_response(self, action_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _create_fallback_response(self, action_data: Dict[str, Any], bmc: BusinessModelCanvas) -> Dict[str, Any]:
         """Create fallback response when all retries fail"""
+        business_stage = bmc.get_business_stage()
+        
         return {
             "analysis": f"Analysis of '{action_data.get('title', 'the action')}' completed with {action_data.get('outcome', 'unknown')} outcome. Manual review recommended for detailed insights.",
             "changes": [],
-            "next_experiments": [
-                "Review action results manually for key insights",
-                "Consider running similar experiment with more structured data collection"
+            "next_steps": [
+                {
+                    "title": "Manual review of action results",
+                    "description": "Conduct detailed manual analysis of the action outcomes and implications",
+                    "timeline": "1 week",
+                    "resources_needed": ["2-3 hours analysis time"],
+                    "success_metrics": ["Clear insights identified", "Next actions defined"],
+                    "priority": "high",
+                    "difficulty": "easy",
+                    "stage": business_stage,
+                    "implementation_steps": [
+                        "Review all action data in detail",
+                        "Identify key learnings and implications", 
+                        "Define specific next experiments"
+                    ]
+                },
+                {
+                    "title": "Collect additional data",
+                    "description": f"Gather more structured data to better understand the {action_data.get('outcome', 'unknown')} outcome",
+                    "timeline": "2 weeks",
+                    "resources_needed": ["Data collection tools", "Customer outreach"],
+                    "success_metrics": ["Additional insights gathered", "Clearer direction identified"],
+                    "priority": "medium", 
+                    "difficulty": "medium",
+                    "stage": business_stage,
+                    "implementation_steps": [
+                        "Design data collection approach",
+                        "Execute data gathering",
+                        "Analyze and synthesize findings"
+                    ]
+                }
             ]
         }
 

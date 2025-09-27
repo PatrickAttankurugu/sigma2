@@ -1,6 +1,6 @@
 """
 Business Model Canvas for SIGMA - Business Design Phase
-Focused on the 4 core sections that entrepreneurs define first
+Enhanced with Business Intelligence and Stage Detection
 """
 
 from typing import List, Dict, Any
@@ -8,7 +8,7 @@ from .utils import LoggingMixin
 
 
 class BusinessModelCanvas(LoggingMixin):
-    """Simplified BMC with 4 sections from Business Design Phase"""
+    """Simplified BMC with 4 sections from Business Design Phase + Business Intelligence"""
     
     def __init__(self):
         # Initialize empty sections - entrepreneurs will fill these
@@ -107,6 +107,128 @@ class BusinessModelCanvas(LoggingMixin):
             summary.append(f"Market Opportunity: {self.market_opportunities[0]}")
         
         return " | ".join(summary)
+
+    def get_business_stage(self) -> str:
+        """Detect current business stage based on BMC content and maturity"""
+        if not self.is_complete():
+            return "validation"
+        
+        # Analyze content to determine stage
+        all_content = " ".join([
+            " ".join(self.customer_segments),
+            " ".join(self.value_propositions),
+            " ".join(self.business_models),
+            " ".join(self.market_opportunities)
+        ]).lower()
+        
+        # Growth stage indicators
+        growth_indicators = [
+            'scale', 'scaling', 'growth', 'expand', 'expansion', 'market share',
+            'revenue', 'profit', 'optimization', 'retention', 'churn',
+            'channels', 'distribution', 'partnerships'
+        ]
+        
+        # Scale stage indicators  
+        scale_indicators = [
+            'international', 'global', 'enterprise', 'automation', 'efficiency',
+            'competitive advantage', 'market leader', 'dominance', 'margins',
+            'operational', 'systems', 'processes'
+        ]
+        
+        # Validation stage indicators (default)
+        validation_indicators = [
+            'test', 'validate', 'prototype', 'mvp', 'pilot', 'experiment',
+            'interview', 'survey', 'feedback', 'assumption', 'hypothesis'
+        ]
+        
+        growth_score = sum(1 for indicator in growth_indicators if indicator in all_content)
+        scale_score = sum(1 for indicator in scale_indicators if indicator in all_content)
+        validation_score = sum(1 for indicator in validation_indicators if indicator in all_content)
+        
+        # Determine stage based on content analysis and completeness
+        if scale_score >= 2 and self.get_completeness_score() == 1.0:
+            return "scale"
+        elif growth_score >= 3 or (growth_score >= 2 and self.get_completeness_score() >= 0.75):
+            return "growth"
+        else:
+            return "validation"
+
+    def get_risk_assessment(self) -> str:
+        """Identify potential risks in current business model"""
+        if not self.is_complete():
+            return "Complete business design to assess risks"
+        
+        risks = []
+        
+        # Analyze customer segments
+        if len(self.customer_segments) == 1:
+            risks.append("Single customer segment dependency")
+        
+        # Analyze value propositions
+        vp_content = " ".join(self.value_propositions).lower()
+        if not any(word in vp_content for word in ['unique', 'different', 'advantage', 'better']):
+            risks.append("Value proposition lacks differentiation")
+        
+        # Analyze business models
+        bm_content = " ".join(self.business_models).lower()
+        if len(self.business_models) == 1 and not any(word in bm_content for word in ['recurring', 'subscription', 'repeat']):
+            risks.append("Single revenue stream without recurring income")
+        
+        # Analyze market opportunities
+        mo_content = " ".join(self.market_opportunities).lower()
+        if not any(word in mo_content for word in ['large', 'growing', 'billion', 'million', 'market size']):
+            risks.append("Market size unclear or potentially limited")
+        
+        if not risks:
+            return "Low risk profile - well-balanced business model"
+        elif len(risks) <= 2:
+            return f"Medium risk: {'; '.join(risks[:2])}"
+        else:
+            return f"High risk: {'; '.join(risks[:3])}"
+
+    def get_enhanced_business_context(self) -> str:
+        """Get comprehensive business context for AI analysis"""
+        if not self.is_complete():
+            return "Business design phase not completed"
+        
+        stage = self.get_business_stage()
+        risk_assessment = self.get_risk_assessment()
+        completion = self.get_completeness_score()
+        
+        context = f"""
+BUSINESS PROFILE:
+Stage: {stage.title()}
+Risk Assessment: {risk_assessment}
+Completion: {completion:.0%}
+
+BUSINESS MODEL DETAILS:
+Customer Segments ({len(self.customer_segments)}):
+{chr(10).join(f"• {item}" for item in self.customer_segments)}
+
+Value Propositions ({len(self.value_propositions)}):
+{chr(10).join(f"• {item}" for item in self.value_propositions)}
+
+Business Models ({len(self.business_models)}):
+{chr(10).join(f"• {item}" for item in self.business_models)}
+
+Market Opportunities ({len(self.market_opportunities)}):
+{chr(10).join(f"• {item}" for item in self.market_opportunities)}
+
+STRATEGIC CONTEXT:
+Based on the current {stage} stage, focus recommendations on {self._get_stage_focus(stage)}.
+Risk mitigation should address: {risk_assessment}
+        """
+        
+        return context.strip()
+
+    def _get_stage_focus(self, stage: str) -> str:
+        """Get stage-specific strategic focus"""
+        if stage == "validation":
+            return "customer validation, assumption testing, MVP development, and market fit validation"
+        elif stage == "growth":
+            return "scaling customer acquisition, optimizing conversion rates, expanding market reach, and improving retention"
+        else:  # scale
+            return "operational efficiency, market expansion, competitive differentiation, and sustainable growth systems"
 
     def _update_completion_status(self):
         """Update completion status based on current sections"""

@@ -1,6 +1,6 @@
 """
 Business Design Phase Handler for SIGMA
-Manages the initial business design form and validation
+Enhanced with Stage-Aware Sample Actions
 """
 
 import streamlit as st
@@ -209,21 +209,32 @@ class BusinessDesignManager(LoggingMixin):
         st.sidebar.caption(f"**Summary:** {bmc.get_business_summary()}")
     
     def get_sample_actions(self, bmc: BusinessModelCanvas) -> Dict[str, Dict[str, str]]:
-        """Generate sample actions based on user's business design"""
+        """Generate stage-aware sample actions based on user's business design"""
         if not bmc.is_complete():
             return {}
         
         # Get business context
         primary_customer = bmc.customer_segments[0] if bmc.customer_segments else "target customers"
         primary_value_prop = bmc.value_propositions[0] if bmc.value_propositions else "main value proposition"
+        business_stage = bmc.get_business_stage()
         
+        # Generate stage-appropriate sample actions
+        if business_stage == "validation":
+            return self._get_validation_stage_samples(primary_customer, primary_value_prop)
+        elif business_stage == "growth":
+            return self._get_growth_stage_samples(primary_customer, primary_value_prop)
+        else:  # scale
+            return self._get_scale_stage_samples(primary_customer, primary_value_prop)
+    
+    def _get_validation_stage_samples(self, primary_customer: str, primary_value_prop: str) -> Dict[str, Dict[str, str]]:
+        """Get validation stage sample actions"""
         return {
-            f"Customer Validation with {primary_customer.split()[0]} Segment": {
-                "title": f"Customer interviews with 20 potential {primary_customer.lower()}",
+            f"Customer Validation - {primary_customer.split()[0]} Interviews": {
+                "title": f"Customer discovery interviews with 20 potential {primary_customer.lower()}",
                 "outcome": "Successful", 
                 "description": f"Conducted in-depth interviews with potential customers in the {primary_customer.lower()} segment to validate our assumptions about their pain points and willingness to pay.",
                 "results": f"""
-VALIDATION RESULTS:
+VALIDATION SUCCESS:
 
 Customer Pain Points Confirmed:
 - 85% confirmed the exact problem we're solving exists
@@ -237,79 +248,186 @@ Value Proposition Validation:
 - Willingness to pay confirmed at proposed price point
 - {primary_value_prop.lower()} resonated strongly with 91% of interviewees
 
-Key Insights:
-- Implementation concerns around learning curve (addressed)
+Key Insights for Next Steps:
+- Implementation concerns around learning curve (need onboarding focus)
 - Strong preference for integration with existing tools
 - Mobile access ranked as "critical" by 67%
-- Customer support during onboarding is essential
+- Customer support during onboarding is essential for adoption
+- Demo request rate: 73% (strong validation signal)
 """
             },
             
-            f"MVP Testing - {primary_value_prop.split()[0]} Feature": {
-                "title": f"2-week MVP test of core {primary_value_prop.lower().split()[0]} functionality",
+            f"MVP Testing - Core {primary_value_prop.split()[0]} Feature": {
+                "title": f"2-week MVP test of core feature delivering {primary_value_prop.lower().split()[0]} functionality",
                 "outcome": "Inconclusive",
-                "description": f"Built and tested minimum viable version of our core feature that delivers {primary_value_prop.lower()} to early adopters.",
+                "description": f"Built and tested minimum viable version of our core feature with early adopters to validate product-market fit.",
                 "results": f"""
-MIXED MVP RESULTS:
+MIXED MVP SIGNALS:
 
-Positive Signals:
+Positive Indicators:
 - 67% user activation rate (industry average: 40%)
 - Daily active usage by 45% of registered users
 - Average session time: 23 minutes (target: 15 minutes)
 - 89% completion rate for onboarding flow
+- Net Promoter Score: 42 (above average for early-stage)
 
-Challenges Identified:
+Concerning Patterns:
 - Feature discovery issues - users missed key functionality
-- Mobile experience significantly weaker than desktop
+- Mobile experience significantly weaker than desktop (58% vs 89% satisfaction)
 - Integration setup took average 3.2 hours (target: 30 minutes) 
-- 34% churn rate after week 1 (too high)
+- 34% churn rate after week 1 (too high for sustainable growth)
 
 Inconclusive Elements:
 - Limited sample size (47 users across 2 weeks)
 - Seasonal factors may have affected usage patterns
 - Technical issues in days 3-5 skewed engagement data
-- Need longer testing period to assess retention properly
+- Mixed feedback on core value proposition delivery
 
-Next Steps Needed:
-- Extend test to 30 days with larger user group
-- Focus on mobile experience improvements
-- Simplify integration process based on user feedback
+Critical Next Steps Needed:
+- Extend test to 30 days with larger user group (200+ users)
+- Focus on mobile experience improvements and faster integration
+- Conduct user interviews to understand churn reasons
 """
             },
             
-            "Pricing Strategy Validation": {
-                "title": "A/B testing of pricing models with different customer segments",
+            "Pricing Model Validation Test": {
+                "title": "A/B testing of pricing strategies with early customer segment",
                 "outcome": "Failed",
-                "description": "Tested three different pricing strategies across different customer segments to optimize revenue and adoption.",
+                "description": "Tested three different pricing models to find optimal revenue approach and validate customer willingness to pay.",
                 "results": f"""
-PRICING TEST FAILURE:
+PRICING VALIDATION FAILURE:
 
-Models Tested:
-- Premium Model: $99/month with full features
-- Freemium Model: Free basic + $49/month premium  
-- Usage-Based: $2 per transaction/use
+Models Tested (3 weeks each):
+- Premium Model: $99/month with full features (50 prospects)
+- Freemium Model: Free basic + $49/month premium (50 prospects)
+- Usage-Based: $2 per transaction/use (50 prospects)
 
-Results by Model:
-- Premium: 12% conversion rate (too low)
-- Freemium: 67% stayed on free forever (95% never upgraded)
+Disappointing Results:
+- Premium: 12% conversion rate (industry: 15-20%)
+- Freemium: 67% stayed on free forever, only 3% upgraded
 - Usage-Based: Unpredictable costs scared away 78% of prospects
 
-Key Learnings:
-- Our target customers are extremely price-sensitive
-- Current value proposition doesn't justify premium pricing
-- Free users consume support resources without revenue
-- Usage-based model creates adoption barriers
-
-Market Reality Check:
-- Competitors pricing 40-60% lower than our premium model
-- Customer acquisition cost ($180) too high for $49/month model
-- {primary_customer.lower()} segment has limited budget flexibility
-- Enterprise features needed to justify higher pricing
+Key Learnings About Market Reality:
+- Our target customers are more price-sensitive than assumed
+- Current value proposition doesn't justify premium pricing positioning
+- Free users consume significant support resources without revenue
+- Usage-based model creates adoption barriers due to cost uncertainty
+- {primary_customer.lower()} segment has tighter budget constraints than researched
 
 Failed Assumptions:
 - Overestimated willingness to pay for {primary_value_prop.lower()}
-- Underestimated price comparison shopping behavior
-- Value demonstration insufficient for premium positioning
+- Underestimated price comparison shopping behavior in this market
+- Value demonstration insufficient for justifying premium pricing
+- Competition pricing 40-60% lower than our premium model
+"""
+            }
+        }
+    
+    def _get_growth_stage_samples(self, primary_customer: str, primary_value_prop: str) -> Dict[str, Dict[str, str]]:
+        """Get growth stage sample actions"""
+        return {
+            f"Channel Optimization - {primary_customer.split()[0]} Acquisition": {
+                "title": f"3-month multi-channel acquisition test for {primary_customer.lower()} segment",
+                "outcome": "Successful",
+                "description": f"Optimized customer acquisition channels to scale growth efficiently while maintaining quality of {primary_customer.lower()} customers.",
+                "results": f"""
+CHANNEL OPTIMIZATION SUCCESS:
+
+Channel Performance Results:
+- Content Marketing: $45 CAC, 89% quality score, 3.2x LTV/CAC
+- LinkedIn Ads: $67 CAC, 92% quality score, 2.8x LTV/CAC  
+- Partner Referrals: $23 CAC, 95% quality score, 4.1x LTV/CAC
+- Google Ads: $89 CAC, 76% quality score, 2.1x LTV/CAC
+
+Scaling Success Metrics:
+- Overall CAC reduced from $120 to $58 (52% improvement)
+- Monthly new customer growth: 145% increase
+- Customer quality score improved by 23%
+- {primary_value_prop.lower()} adoption rate: 87% within first month
+
+Strategic Channel Focus:
+- Partner referrals show highest efficiency and quality
+- Content marketing provides best long-term brand building
+- LinkedIn ads effective for enterprise segment expansion
+- Google ads useful for competitive conquest campaigns
+
+Growth Opportunities Identified:
+- Scale partner program to reach 50+ active referrers
+- Invest heavily in content marketing system and automation
+- Test expansion into adjacent customer segments using proven channels
+"""
+            },
+            
+            f"Retention Optimization - {primary_value_prop.split()[0]} Delivery": {
+                "title": f"Customer success program to improve {primary_value_prop.lower()} delivery and retention",
+                "outcome": "Inconclusive", 
+                "description": f"Implemented customer success initiatives to reduce churn and increase expansion revenue from existing {primary_customer.lower()}.",
+                "results": f"""
+MIXED RETENTION RESULTS:
+
+Positive Retention Signals:
+- Monthly churn decreased from 8.5% to 6.2% (27% improvement)
+- Net Revenue Retention improved to 112% (from 95%)
+- Customer satisfaction (CSAT) increased to 4.2/5 (from 3.7/5)
+- Support ticket volume decreased by 34%
+
+Concerning Patterns:
+- Improvement concentrated in first 6 months of customer lifecycle
+- Long-term customers (12+ months) showed minimal retention improvement
+- Enterprise segment responded better than SMB segment
+- High-touch success program not economically viable for smaller accounts
+
+Inconclusive Elements:
+- Expansion revenue growth rate slowing after initial boost
+- Unclear which specific success tactics drive retention vs satisfaction
+- Customer success ROI varies significantly by segment and use case
+- Long-term sustainability of current success model questionable
+
+Critical Questions for Next Phase:
+- How to scale customer success efficiently across all segments?
+- What drives long-term customer expansion beyond initial satisfaction?
+- Can we automate success processes without losing effectiveness?
+"""
+            }
+        }
+    
+    def _get_scale_stage_samples(self, primary_customer: str, primary_value_prop: str) -> Dict[str, Dict[str, str]]:
+        """Get scale stage sample actions"""
+        return {
+            f"Market Expansion - International {primary_customer.split()[0]} Segment": {
+                "title": f"6-month international expansion test targeting {primary_customer.lower()} in European markets",
+                "outcome": "Failed",
+                "description": f"Attempted to replicate our successful {primary_value_prop.lower()} model in UK, Germany, and France markets.",
+                "results": f"""
+INTERNATIONAL EXPANSION FAILURE:
+
+Market Entry Results by Country:
+- UK: 23% of projected customer acquisition, high CAC ($340 vs $67 domestic)
+- Germany: 31% of projected acquisition, regulatory compliance issues
+- France: 18% of projected acquisition, language/cultural barriers significant
+
+Failed Assumptions:
+- Product-market fit doesn't translate directly across markets
+- {primary_value_prop.lower()} messaging requires significant localization
+- Competitive landscape much more crowded in European markets
+- Local partnerships essential but difficult to establish remotely
+
+Operational Challenges:
+- Customer support in multiple time zones strained resources
+- Legal/compliance requirements added 40% operational overhead
+- Payment processing complexities reduced conversion by 28%
+- Brand recognition near zero, requiring massive marketing investment
+
+Strategic Learnings:
+- International expansion requires dedicated in-market teams
+- Product features need localization beyond just language translation
+- Partnership strategy must be country-specific and relationship-driven
+- Timing may be premature - domestic market still has growth potential
+
+Next Steps Required:
+- Reassess domestic market saturation before international retry
+- Develop partnerships-first international strategy vs direct expansion
+- Consider acquisition of local competitors as expansion method
 """
             }
         }
