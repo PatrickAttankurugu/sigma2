@@ -46,31 +46,35 @@ class AgenticOrchestrator:
         """Initialize the orchestrator with Google Gemini integration."""
         self.api_key = google_api_key or os.getenv("GOOGLE_API_KEY")
         if not self.api_key:
-            raise ValueError("Google API key is required. Set GOOGLE_API_KEY environment variable.")
+            raise ValueError("Google API key is required. Set GOOGLE_API_KEY environment variable or pass google_api_key parameter.")
 
         self.model_name = model_name
 
-        # Configure Gemini with production-ready settings
-        self.llm = ChatGoogleGenerativeAI(
-            api_key=self.api_key,
-            model=model_name,
-            temperature=0.2,
-            max_output_tokens=1000,
-            timeout=30,
-            max_retries=2
-        )
+        try:
+            # Configure Gemini with production-ready settings
+            self.llm = ChatGoogleGenerativeAI(
+                api_key=self.api_key,
+                model=model_name,
+                temperature=0.2,
+                max_output_tokens=1000,
+                timeout=30,
+                max_retries=2
+            )
 
-        # Initialize specialized agents
-        self.action_detection_agent = ActionDetectionAgent(self.llm)
-        self.outcome_analysis_agent = OutcomeAnalysisAgent(self.llm)
-        self.canvas_update_agent = CanvasUpdateAgent(self.llm)
-        self.next_step_agent = NextStepAgent(self.llm)
+            # Initialize specialized agents
+            self.action_detection_agent = ActionDetectionAgent(self.llm)
+            self.outcome_analysis_agent = OutcomeAnalysisAgent(self.llm)
+            self.canvas_update_agent = CanvasUpdateAgent(self.llm)
+            self.next_step_agent = NextStepAgent(self.llm)
 
-        # Track processed actions for idempotent behavior
-        self.processed_actions = set()
-        
-        # Performance tracking
-        self.processing_metrics = {}
+            # Track processed actions for idempotent behavior
+            self.processed_actions = set()
+            
+            # Performance tracking
+            self.processing_metrics = {}
+            
+        except Exception as e:
+            raise ValueError(f"Failed to initialize AgenticOrchestrator: {str(e)}")
 
     async def process_action_outcome(
         self,
@@ -93,7 +97,6 @@ class AgenticOrchestrator:
         
         try:
             # Add overall timeout for the entire workflow
-            import asyncio
             return await asyncio.wait_for(
                 self._process_workflow(action_data, current_bmc, status_callback),
                 timeout=120  # 2 minutes total timeout
@@ -110,6 +113,8 @@ class AgenticOrchestrator:
         status_callback: Optional[callable] = None
     ) -> AgentRecommendation:
         """Internal workflow processing with timeout protection."""
+        start_time = time.time()
+        
         try:
             # Check for duplicate processing (idempotent behavior)
             action_hash = generate_action_hash(action_data)
@@ -117,51 +122,77 @@ class AgenticOrchestrator:
                 return self._create_duplicate_response(action_data)
 
             # Agent 1: Action Detection & Validation
-            if status_callback:
-                status_callback("action_detection", "running")
-            
-            validated_action = await self.action_detection_agent.process(action_data)
-            
-            if status_callback:
-                status_callback("action_detection", "completed")
+            try:
+                if status_callback:
+                    status_callback("action_detection", "running")
+                
+                validated_action = await asyncio.wait_for(
+                    self.action_detection_agent.process(action_data),
+                    timeout=30
+                )
+                
+                if status_callback:
+                    status_callback("action_detection", "completed")
+            except Exception as e:
+                if status_callback:
+                    status_callback("action_detection", "failed")
+                raise Exception(f"Action detection failed: {str(e)}")
 
             # Agent 2: Outcome Analysis
-            if status_callback:
-                status_callback("outcome_analysis", "running")
-            
-            business_analysis = await self.outcome_analysis_agent.process(
-                validated_action, current_bmc
-            )
-            
-            if status_callback:
-                status_callback("outcome_analysis", "completed")
+            try:
+                if status_callback:
+                    status_callback("outcome_analysis", "running")
+                
+                business_analysis = await asyncio.wait_for(
+                    self.outcome_analysis_agent.process(validated_action, current_bmc),
+                    timeout=30
+                )
+                
+                if status_callback:
+                    status_callback("outcome_analysis", "completed")
+            except Exception as e:
+                if status_callback:
+                    status_callback("outcome_analysis", "failed")
+                raise Exception(f"Outcome analysis failed: {str(e)}")
 
             # Agent 3: Canvas Updates
-            if status_callback:
-                status_callback("canvas_update", "running")
-            
-            proposed_changes = await self.canvas_update_agent.process(
-                business_analysis, current_bmc, validated_action
-            )
-            
-            # Apply deduplication and validation
-            proposed_changes = self._validate_and_enhance_changes(
-                proposed_changes, current_bmc
-            )
-            
-            if status_callback:
-                status_callback("canvas_update", "completed")
+            try:
+                if status_callback:
+                    status_callback("canvas_update", "running")
+                
+                proposed_changes = await asyncio.wait_for(
+                    self.canvas_update_agent.process(business_analysis, current_bmc, validated_action),
+                    timeout=30
+                )
+                
+                # Apply deduplication and validation
+                proposed_changes = self._validate_and_enhance_changes(
+                    proposed_changes, current_bmc
+                )
+                
+                if status_callback:
+                    status_callback("canvas_update", "completed")
+            except Exception as e:
+                if status_callback:
+                    status_callback("canvas_update", "failed")
+                raise Exception(f"Canvas update failed: {str(e)}")
 
             # Agent 4: Next Steps
-            if status_callback:
-                status_callback("next_step", "running")
-            
-            next_actions = await self.next_step_agent.process(
-                proposed_changes, current_bmc, validated_action
-            )
-            
-            if status_callback:
-                status_callback("next_step", "completed")
+            try:
+                if status_callback:
+                    status_callback("next_step", "running")
+                
+                next_actions = await asyncio.wait_for(
+                    self.next_step_agent.process(proposed_changes, current_bmc, validated_action),
+                    timeout=30
+                )
+                
+                if status_callback:
+                    status_callback("next_step", "completed")
+            except Exception as e:
+                if status_callback:
+                    status_callback("next_step", "failed")
+                raise Exception(f"Next step generation failed: {str(e)}")
 
             # Mark as processed for idempotent behavior
             self.processed_actions.add(action_hash)
@@ -190,6 +221,7 @@ class AgenticOrchestrator:
             return recommendation
 
         except Exception as e:
+            # Mark all agents as failed if we reach here
             if status_callback:
                 for agent in ["action_detection", "outcome_analysis", "canvas_update", "next_step"]:
                     status_callback(agent, "failed")
@@ -238,7 +270,6 @@ class AgenticOrchestrator:
             model_version=self.model_name
         )
 
-
     def _validate_and_enhance_changes(
         self, 
         changes: List[ProposedChange], 
@@ -251,16 +282,20 @@ class AgenticOrchestrator:
         enhanced_changes = []
         
         for change in changes:
-            # Basic validation
-            if not change.proposed_value or not change.reasoning:
-                continue
+            try:
+                # Basic validation
+                if not change.proposed_value or not change.reasoning:
+                    continue
+                    
+                # Enhance change with additional metadata
+                change.impact_assessment = self._assess_change_impact(change, current_bmc)
+                change.risk_factors = self._identify_risk_factors(change)
+                change.validation_suggestions = self._generate_validation_suggestions(change)
                 
-            # Enhance change with additional metadata
-            change.impact_assessment = self._assess_change_impact(change, current_bmc)
-            change.risk_factors = self._identify_risk_factors(change)
-            change.validation_suggestions = self._generate_validation_suggestions(change)
-            
-            enhanced_changes.append(change)
+                enhanced_changes.append(change)
+            except Exception as e:
+                # Skip invalid changes
+                continue
 
         # Apply deduplication
         enhanced_changes = deduplicate_changes(enhanced_changes)
@@ -272,31 +307,37 @@ class AgenticOrchestrator:
 
     def _assess_change_impact(self, change: ProposedChange, current_bmc: BusinessModelCanvas) -> str:
         """Assess the business impact of a proposed change."""
-        # High impact sections
-        high_impact_sections = {'value_propositions', 'revenue_streams', 'customer_segments'}
-        
-        if change.canvas_section in high_impact_sections:
+        try:
+            # High impact sections
+            high_impact_sections = {'value_propositions', 'revenue_streams', 'customer_segments'}
+            
+            if change.canvas_section in high_impact_sections:
+                if change.change_type == ChangeType.REMOVE:
+                    return "high"
+                return "medium"
+            
             if change.change_type == ChangeType.REMOVE:
-                return "high"
-            return "medium"
-        
-        if change.change_type == ChangeType.REMOVE:
-            return "medium"
-        
-        return "low"
+                return "medium"
+            
+            return "low"
+        except Exception:
+            return "medium"  # Default to medium impact if assessment fails
 
     def _identify_risk_factors(self, change: ProposedChange) -> List[str]:
         """Identify potential risk factors for a change."""
         risks = []
         
-        if change.confidence_score < 0.7:
-            risks.append("Moderate confidence level - consider additional validation")
-        
-        if change.change_type == ChangeType.REMOVE:
-            risks.append("Removal operation - ensure no dependencies exist")
-        
-        if change.canvas_section in ["revenue_streams", "cost_structure"]:
-            risks.append("Financial impact - review carefully before implementation")
+        try:
+            if change.confidence_score < 0.7:
+                risks.append("Moderate confidence level - consider additional validation")
+            
+            if change.change_type == ChangeType.REMOVE:
+                risks.append("Removal operation - ensure no dependencies exist")
+            
+            if change.canvas_section in ["revenue_streams", "cost_structure"]:
+                risks.append("Financial impact - review carefully before implementation")
+        except Exception:
+            risks.append("Risk assessment failed - manual review recommended")
         
         return risks
 
@@ -319,13 +360,16 @@ class AgenticOrchestrator:
         if not changes:
             return ConfidenceLevel.LOW
 
-        avg_confidence = sum(change.confidence_score for change in changes) / len(changes)
+        try:
+            avg_confidence = sum(change.confidence_score for change in changes) / len(changes)
 
-        if avg_confidence >= 0.8:
-            return ConfidenceLevel.HIGH
-        elif avg_confidence >= 0.6:
-            return ConfidenceLevel.MEDIUM
-        else:
+            if avg_confidence >= 0.8:
+                return ConfidenceLevel.HIGH
+            elif avg_confidence >= 0.6:
+                return ConfidenceLevel.MEDIUM
+            else:
+                return ConfidenceLevel.LOW
+        except Exception:
             return ConfidenceLevel.LOW
 
     def get_processing_metrics(self) -> Dict[str, Any]:
@@ -407,12 +451,15 @@ Return only the JSON object, no other text.
 
     def _extract_json(self, content: str) -> str:
         """Extract JSON from LLM response."""
-        # Find JSON block
-        start = content.find("{")
-        end = content.rfind("}") + 1
-        if start != -1 and end > start:
-            return content[start:end]
-        return content
+        try:
+            # Find JSON block
+            start = content.find("{")
+            end = content.rfind("}") + 1
+            if start != -1 and end > start:
+                return content[start:end]
+            return content
+        except Exception:
+            return "{}"
 
 
 class OutcomeAnalysisAgent:
@@ -453,13 +500,21 @@ Return ONLY a JSON object with this structure:
 Focus on actionable insights for African emerging market context.
 """)
 
-            # Prepare BMC context
-            bmc_summary = {
-                "customer_segments_count": len(current_bmc.customer_segments),
-                "value_props_count": len(current_bmc.value_propositions),
-                "revenue_streams_count": len(current_bmc.revenue_streams),
-                "completeness": current_bmc.get_completeness_score()
-            }
+            # Prepare BMC context safely
+            try:
+                bmc_summary = {
+                    "customer_segments_count": len(current_bmc.customer_segments),
+                    "value_props_count": len(current_bmc.value_propositions),
+                    "revenue_streams_count": len(current_bmc.revenue_streams),
+                    "completeness": current_bmc.get_completeness_score()
+                }
+            except Exception:
+                bmc_summary = {
+                    "customer_segments_count": 0,
+                    "value_props_count": 0,
+                    "revenue_streams_count": 0,
+                    "completeness": 0.0
+                }
 
             human_message = HumanMessage(content=f"""
 ANALYZE THIS COMPLETED ACTION:
@@ -503,11 +558,14 @@ Provide strategic analysis for business model optimization. Return only JSON.
 
     def _extract_json(self, content: str) -> str:
         """Extract JSON from LLM response."""
-        start = content.find("{")
-        end = content.rfind("}") + 1
-        if start != -1 and end > start:
-            return content[start:end]
-        return content
+        try:
+            start = content.find("{")
+            end = content.rfind("}") + 1
+            if start != -1 and end > start:
+                return content[start:end]
+            return content
+        except Exception:
+            return "{}"
 
 
 class CanvasUpdateAgent:
@@ -550,16 +608,26 @@ CONFIDENCE SCORING:
 Only propose changes with strong evidence support. Return only JSON.
 """)
 
+            # Safely get BMC section counts
+            try:
+                customer_segments_count = len(current_bmc.customer_segments)
+                value_props_count = len(current_bmc.value_propositions)
+                channels_count = len(current_bmc.channels)
+                revenue_streams_count = len(current_bmc.revenue_streams)
+                partnerships_count = len(current_bmc.key_partnerships)
+            except Exception:
+                customer_segments_count = value_props_count = channels_count = revenue_streams_count = partnerships_count = 0
+
             human_message = HumanMessage(content=f"""
 STRATEGIC ANALYSIS:
 {json.dumps(analysis, indent=2)}
 
 CURRENT BMC SECTIONS:
-Customer Segments: {len(current_bmc.customer_segments)} items
-Value Propositions: {len(current_bmc.value_propositions)} items  
-Channels: {len(current_bmc.channels)} items
-Revenue Streams: {len(current_bmc.revenue_streams)} items
-Key Partnerships: {len(current_bmc.key_partnerships)} items
+Customer Segments: {customer_segments_count} items
+Value Propositions: {value_props_count} items  
+Channels: {channels_count} items
+Revenue Streams: {revenue_streams_count} items
+Key Partnerships: {partnerships_count} items
 
 ACTION CONTEXT:
 Title: {action.title}
@@ -583,11 +651,14 @@ Generate evidence-based BMC updates. Return only JSON.
 
     def _extract_json(self, content: str) -> str:
         """Extract JSON from LLM response."""
-        start = content.find("{")
-        end = content.rfind("}") + 1
-        if start != -1 and end > start:
-            return content[start:end]
-        return content
+        try:
+            start = content.find("{")
+            end = content.rfind("}") + 1
+            if start != -1 and end > start:
+                return content[start:end]
+            return content
+        except Exception:
+            return "{}"
 
     def _create_proposed_changes(self, changes_data: List[Dict[str, Any]]) -> List[ProposedChange]:
         """Create validated ProposedChange objects."""
@@ -621,19 +692,22 @@ Generate evidence-based BMC updates. Return only JSON.
 
     def _validate_change(self, change: ProposedChange) -> bool:
         """Validate the quality of a proposed change."""
-        # Check reasoning quality
-        if len(change.reasoning) < 20:
-            return False
+        try:
+            # Check reasoning quality
+            if len(change.reasoning) < 20:
+                return False
 
-        # Check confidence score range
-        if not (0.0 <= change.confidence_score <= 1.0):
-            return False
+            # Check confidence score range
+            if not (0.0 <= change.confidence_score <= 1.0):
+                return False
 
-        # Check for meaningful proposed value
-        if not change.proposed_value.strip():
-            return False
+            # Check for meaningful proposed value
+            if not change.proposed_value.strip():
+                return False
 
-        return True
+            return True
+        except Exception:
+            return False
 
 
 class NextStepAgent:
@@ -673,6 +747,12 @@ Return only JSON with 3-5 practical next actions.
 
             changes_summary = self._summarize_changes(proposed_changes)
 
+            # Safely get completeness score
+            try:
+                completeness = current_bmc.get_completeness_score()
+            except Exception:
+                completeness = 0.0
+
             human_message = HumanMessage(content=f"""
 PROPOSED CHANGES SUMMARY:
 {changes_summary}
@@ -682,7 +762,7 @@ Action: {action.title}
 Outcome: {action.outcome.value}
 Category: {action.action_category}
 
-BMC COMPLETENESS: {current_bmc.get_completeness_score():.0%}
+BMC COMPLETENESS: {completeness:.0%}
 
 Generate 3-5 specific next actions. Return only JSON.
 """)
@@ -700,34 +780,52 @@ Generate 3-5 specific next actions. Return only JSON.
 
     def _extract_json(self, content: str) -> str:
         """Extract JSON from LLM response."""
-        start = content.find("{")
-        end = content.rfind("}") + 1
-        if start != -1 and end > start:
-            return content[start:end]
-        return content
+        try:
+            start = content.find("{")
+            end = content.rfind("}") + 1
+            if start != -1 and end > start:
+                return content[start:end]
+            return content
+        except Exception:
+            return "{}"
 
     def _summarize_changes(self, changes: List[ProposedChange]) -> str:
         """Create a summary of proposed changes."""
-        if not changes:
-            return "No changes proposed"
+        try:
+            if not changes:
+                return "No changes proposed"
 
-        summary = f"{len(changes)} proposed changes:\n"
-        
-        for change in changes[:3]:  # Show top 3
-            section = change.canvas_section.replace("_", " ").title()
-            summary += f"• {section}: {change.change_type.value} - {change.proposed_value[:50]}...\n"
+            summary = f"{len(changes)} proposed changes:\n"
+            
+            for change in changes[:3]:  # Show top 3
+                try:
+                    section = change.canvas_section.replace("_", " ").title()
+                    summary += f"• {section}: {change.change_type.value} - {change.proposed_value[:50]}...\n"
+                except Exception:
+                    summary += f"• Change: {change.proposed_value[:50]}...\n"
 
-        return summary
+            return summary
+        except Exception:
+            return "Changes summary unavailable"
 
     def _create_fallback_actions(self, action: CompletedAction) -> List[str]:
         """Create fallback actions when AI processing fails."""
-        return [
-            f"Review and validate findings from {action.title}",
-            "Discuss proposed changes with key stakeholders",
-            "Design follow-up experiments to test assumptions",
-            "Create implementation timeline for approved changes",
-            "Set up monitoring metrics for change impact"
-        ]
+        try:
+            return [
+                f"Review and validate findings from {action.title}",
+                "Discuss proposed changes with key stakeholders",
+                "Design follow-up experiments to test assumptions",
+                "Create implementation timeline for approved changes",
+                "Set up monitoring metrics for change impact"
+            ]
+        except Exception:
+            return [
+                "Review and validate action findings",
+                "Discuss proposed changes with stakeholders",
+                "Design follow-up experiments",
+                "Create implementation timeline",
+                "Set up monitoring metrics"
+            ]
 
 
 # Export main classes

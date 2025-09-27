@@ -1,14 +1,14 @@
 """
 Enhanced utility functions for the Agentic AI Actions Co-pilot system.
-Streamlined for Seedstars assignment focusing on core agentic workflow,
-version control, and idempotent behavior.
+Comprehensive error handling, recovery mechanisms, and production-ready reliability.
 """
 
 import json
 import os
 import hashlib
+import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, Tuple, Union
 from pathlib import Path
 
 import pandas as pd
@@ -24,61 +24,255 @@ from business_models import (
     CompletedAction,
     ActionOutcome
 )
-from sema_business_data import get_sample_business_model_canvas
 
-# ==================== DATA MANAGEMENT FUNCTIONS ====================
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# ==================== CONSTANTS AND DEFAULTS ====================
+
+DEFAULT_BMC_DATA = {
+    "customer_segments": ["Early adopters and tech-savvy users"],
+    "value_propositions": ["Innovative solution addressing key market needs"],
+    "channels": ["Digital platforms and direct sales"],
+    "customer_relationships": ["Personal assistance and self-service"],
+    "revenue_streams": ["Subscription fees and service charges"],
+    "key_resources": ["Technology platform and skilled team"],
+    "key_activities": ["Product development and customer support"],
+    "key_partnerships": ["Strategic technology and business partners"],
+    "cost_structure": ["Development costs and operational expenses"],
+    "last_updated": None,  # Will be set to current time
+    "version": "1.0.0",
+    "tags": ["default", "fallback"]
+}
+
+# ==================== SAFE DATA MANAGEMENT FUNCTIONS ====================
+
+def create_fallback_bmc() -> BusinessModelCanvas:
+    """Create a fallback business model canvas when other loading methods fail"""
+    try:
+        bmc_data = DEFAULT_BMC_DATA.copy()
+        bmc_data["last_updated"] = datetime.now()
+        return BusinessModelCanvas(**bmc_data)
+    except Exception as e:
+        logger.error(f"Failed to create fallback BMC: {str(e)}")
+        raise Exception(f"Critical error: Cannot create business model canvas: {str(e)}")
+
+
+def safe_file_operation(operation: str, file_path: str, data: Any = None) -> Tuple[bool, Any, str]:
+    """
+    Safely perform file operations with comprehensive error handling
+    
+    Args:
+        operation: 'read' or 'write'
+        file_path: Path to the file
+        data: Data to write (for write operations)
+    
+    Returns:
+        Tuple of (success: bool, result: Any, error_message: str)
+    """
+    try:
+        # Ensure directory exists for write operations
+        if operation == 'write':
+            Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+        
+        if operation == 'read':
+            if not os.path.exists(file_path):
+                return False, None, f"File not found: {file_path}"
+            
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    result = json.load(f)
+                return True, result, ""
+            except json.JSONDecodeError as e:
+                return False, None, f"Invalid JSON in {file_path}: {str(e)}"
+            except UnicodeDecodeError as e:
+                return False, None, f"Encoding error in {file_path}: {str(e)}"
+            
+        elif operation == 'write':
+            if data is None:
+                return False, None, "No data provided for write operation"
+            
+            try:
+                # Create backup if file exists
+                if os.path.exists(file_path):
+                    backup_path = f"{file_path}.backup"
+                    try:
+                        os.rename(file_path, backup_path)
+                    except Exception:
+                        pass  # Continue without backup
+                
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+                return True, None, ""
+                
+            except TypeError as e:
+                return False, None, f"Data serialization error: {str(e)}"
+            except OSError as e:
+                return False, None, f"File system error: {str(e)}"
+        
+        else:
+            return False, None, f"Unknown operation: {operation}"
+            
+    except Exception as e:
+        return False, None, f"Unexpected error in file operation: {str(e)}"
+
 
 def load_business_model(file_path: str = "business_model.json") -> BusinessModelCanvas:
     """
-    Load current business model canvas state from file.
-    Falls back to sample data for clean demo experience.
-
+    Load current business model canvas state from file with comprehensive fallbacks
+    
     Args:
         file_path: Path to the BMC JSON file
-
+    
     Returns:
         BusinessModelCanvas object
     """
     try:
-        if os.path.exists(file_path):
-            with open(file_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+        # Try to load from specified file
+        success, data, error = safe_file_operation('read', file_path)
+        
+        if success and data:
+            try:
                 # Handle datetime parsing for loaded data
                 if 'last_updated' in data and isinstance(data['last_updated'], str):
-                    data['last_updated'] = datetime.fromisoformat(data['last_updated'])
+                    try:
+                        data['last_updated'] = datetime.fromisoformat(data['last_updated'])
+                    except ValueError:
+                        data['last_updated'] = datetime.now()
+                elif 'last_updated' not in data:
+                    data['last_updated'] = datetime.now()
+                
+                # Validate required fields
+                required_fields = ['customer_segments', 'value_propositions', 'channels', 
+                                 'customer_relationships', 'revenue_streams', 'key_resources',
+                                 'key_activities', 'key_partnerships', 'cost_structure']
+                
+                for field in required_fields:
+                    if field not in data:
+                        data[field] = []
+                    elif not isinstance(data[field], list):
+                        data[field] = [str(data[field])] if data[field] else []
+                
+                # Ensure version exists
+                if 'version' not in data:
+                    data['version'] = "1.0.0"
+                
                 return BusinessModelCanvas(**data)
-        else:
-            # Return sample BMC for demo
+                
+            except Exception as e:
+                logger.warning(f"Failed to parse BMC data from {file_path}: {str(e)}")
+        
+        # Try alternative file locations
+        alternative_paths = [
+            "data/business_model.json",
+            "backup/business_model.json",
+            f"{file_path}.backup"
+        ]
+        
+        for alt_path in alternative_paths:
+            try:
+                success, data, error = safe_file_operation('read', alt_path)
+                if success and data:
+                    logger.info(f"Loaded BMC from alternative path: {alt_path}")
+                    # Apply same processing as above
+                    if 'last_updated' in data and isinstance(data['last_updated'], str):
+                        data['last_updated'] = datetime.fromisoformat(data['last_updated'])
+                    return BusinessModelCanvas(**data)
+            except Exception:
+                continue
+        
+        # If all file loading fails, try to get sample data
+        try:
+            from sema_business_data import get_sample_business_model_canvas
+            logger.info("Loading sample business model canvas")
             return get_sample_business_model_canvas()
-    except (FileNotFoundError, json.JSONDecodeError, ValueError, TypeError) as e:
-        print(f"Warning: Could not load business model from {file_path}: {e}")
-        return get_sample_business_model_canvas()
+        except Exception as e:
+            logger.warning(f"Failed to load sample BMC: {str(e)}")
+        
+        # Final fallback: create default BMC
+        logger.info("Creating fallback business model canvas")
+        return create_fallback_bmc()
+        
+    except Exception as e:
+        logger.error(f"Critical error in load_business_model: {str(e)}")
+        return create_fallback_bmc()
 
 
 def save_business_model(bmc: BusinessModelCanvas, file_path: str = "business_model.json") -> bool:
     """
-    Save business model canvas to file.
-
+    Save business model canvas to file with comprehensive error handling
+    
     Args:
         bmc: BusinessModelCanvas to save
         file_path: Path where to save the BMC
-
+    
     Returns:
         True if successful, False otherwise
     """
     try:
-        # Ensure directory exists
-        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+        if bmc is None:
+            logger.error("Cannot save None business model")
+            return False
         
         # Convert to dict and handle datetime serialization
-        bmc_dict = bmc.dict()
-        bmc_dict['last_updated'] = bmc.last_updated.isoformat()
-
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(bmc_dict, f, indent=2, ensure_ascii=False)
-        return True
+        try:
+            bmc_dict = bmc.dict()
+            
+            # Handle datetime serialization
+            if 'last_updated' in bmc_dict and hasattr(bmc_dict['last_updated'], 'isoformat'):
+                bmc_dict['last_updated'] = bmc_dict['last_updated'].isoformat()
+            
+            # Validate data before saving
+            if not isinstance(bmc_dict, dict):
+                logger.error("BMC data is not a dictionary")
+                return False
+            
+            # Ensure all required fields are present
+            required_fields = ['customer_segments', 'value_propositions', 'channels', 
+                             'customer_relationships', 'revenue_streams', 'key_resources',
+                             'key_activities', 'key_partnerships', 'cost_structure']
+            
+            for field in required_fields:
+                if field not in bmc_dict:
+                    bmc_dict[field] = []
+                elif not isinstance(bmc_dict[field], list):
+                    bmc_dict[field] = []
+                    
+        except Exception as e:
+            logger.error(f"Failed to serialize BMC: {str(e)}")
+            return False
+        
+        # Save to primary location
+        success, _, error = safe_file_operation('write', file_path, bmc_dict)
+        
+        if success:
+            # Also save backup copy
+            try:
+                backup_path = f"backup/{file_path}"
+                safe_file_operation('write', backup_path, bmc_dict)
+            except Exception:
+                pass  # Backup failure is not critical
+            
+            logger.info(f"Successfully saved BMC to {file_path}")
+            return True
+        else:
+            logger.error(f"Failed to save BMC to {file_path}: {error}")
+            
+            # Try alternative location
+            try:
+                alt_path = f"data/{file_path}"
+                success, _, error = safe_file_operation('write', alt_path, bmc_dict)
+                if success:
+                    logger.info(f"Saved BMC to alternative location: {alt_path}")
+                    return True
+            except Exception:
+                pass
+            
+            return False
+        
     except Exception as e:
-        print(f"Error saving business model to {file_path}: {e}")
+        logger.error(f"Critical error in save_business_model: {str(e)}")
         return False
 
 
@@ -88,708 +282,875 @@ def create_change_history(
     trigger_action_id: str,
     applied_changes: List[ProposedChange],
     auto_applied: bool = False
-) -> ChangeHistory:
+) -> Optional[ChangeHistory]:
     """
-    Create a change history record for version tracking and undo functionality.
-
+    Create a change history record with comprehensive error handling
+    
     Args:
         old_state: BMC state before changes
         new_state: BMC state after changes
         trigger_action_id: ID of action that triggered changes
         applied_changes: List of changes that were applied
         auto_applied: Whether changes were applied automatically
-
-    Returns:
-        ChangeHistory object
-    """
-    # Create snapshots with datetime handling
-    old_snapshot = old_state.dict()
-    old_snapshot['last_updated'] = old_state.last_updated.isoformat()
     
-    new_snapshot = new_state.dict()
-    new_snapshot['last_updated'] = new_state.last_updated.isoformat()
-
-    return ChangeHistory(
-        trigger_action_id=trigger_action_id,
-        changes_applied=applied_changes,
-        previous_state_snapshot=old_snapshot,
-        new_state_snapshot=new_snapshot,
-        auto_applied=auto_applied,
-        applied_by="user"  # Could be enhanced to track actual user
-    )
+    Returns:
+        ChangeHistory object or None if creation fails
+    """
+    try:
+        if old_state is None or new_state is None:
+            logger.error("Cannot create change history with None states")
+            return None
+        
+        if not applied_changes:
+            logger.warning("Creating change history with no applied changes")
+            applied_changes = []
+        
+        # Create snapshots with datetime handling
+        try:
+            old_snapshot = old_state.dict()
+            if 'last_updated' in old_snapshot and hasattr(old_snapshot['last_updated'], 'isoformat'):
+                old_snapshot['last_updated'] = old_snapshot['last_updated'].isoformat()
+        except Exception as e:
+            logger.error(f"Failed to create old state snapshot: {str(e)}")
+            old_snapshot = {}
+        
+        try:
+            new_snapshot = new_state.dict()
+            if 'last_updated' in new_snapshot and hasattr(new_snapshot['last_updated'], 'isoformat'):
+                new_snapshot['last_updated'] = new_snapshot['last_updated'].isoformat()
+        except Exception as e:
+            logger.error(f"Failed to create new state snapshot: {str(e)}")
+            new_snapshot = {}
+        
+        return ChangeHistory(
+            trigger_action_id=str(trigger_action_id) if trigger_action_id else "unknown",
+            changes_applied=applied_changes,
+            previous_state_snapshot=old_snapshot,
+            new_state_snapshot=new_snapshot,
+            auto_applied=bool(auto_applied),
+            applied_by="user"  # Could be enhanced to track actual user
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to create change history: {str(e)}")
+        return None
 
 
 def save_change_history(history: ChangeHistory, history_file: str = "change_history.json") -> bool:
     """
-    Save change history to file for audit trail and undo functionality.
-
+    Save change history to file with comprehensive error handling
+    
     Args:
         history: ChangeHistory to save
         history_file: File to save history records
-
+    
     Returns:
         True if successful
     """
     try:
-        # Ensure directory exists
-        Path(history_file).parent.mkdir(parents=True, exist_ok=True)
+        if history is None:
+            logger.error("Cannot save None change history")
+            return False
         
         # Load existing history
         existing_history = []
-        if os.path.exists(history_file):
-            try:
-                with open(history_file, 'r', encoding='utf-8') as f:
-                    existing_history = json.load(f)
-            except (json.JSONDecodeError, FileNotFoundError):
+        success, data, error = safe_file_operation('read', history_file)
+        
+        if success and data:
+            if isinstance(data, list):
+                existing_history = data
+            else:
+                logger.warning(f"Invalid history file format: {history_file}")
                 existing_history = []
-
+        
+        # Prepare new history record
+        try:
+            history_dict = history.dict()
+            
+            # Handle datetime serialization
+            if 'timestamp' in history_dict and hasattr(history_dict['timestamp'], 'isoformat'):
+                history_dict['timestamp'] = history_dict['timestamp'].isoformat()
+            
+            # Handle ProposedChange serialization
+            changes_list = []
+            for change in history.changes_applied:
+                try:
+                    change_dict = change.dict()
+                    # Handle datetime fields if any
+                    if 'created_at' in change_dict and hasattr(change_dict['created_at'], 'isoformat'):
+                        change_dict['created_at'] = change_dict['created_at'].isoformat()
+                    changes_list.append(change_dict)
+                except Exception as e:
+                    logger.warning(f"Failed to serialize change: {str(e)}")
+                    continue
+            
+            history_dict['changes_applied'] = changes_list
+            
+        except Exception as e:
+            logger.error(f"Failed to serialize change history: {str(e)}")
+            return False
+        
         # Add new history record
-        history_dict = history.dict()
-        history_dict['timestamp'] = history.timestamp.isoformat()
-        
-        # Handle ProposedChange serialization
-        changes_list = []
-        for change in history.changes_applied:
-            change_dict = change.dict()
-            # Handle datetime fields if any
-            if 'created_at' in change_dict and hasattr(change_dict['created_at'], 'isoformat'):
-                change_dict['created_at'] = change_dict['created_at'].isoformat()
-            changes_list.append(change_dict)
-        history_dict['changes_applied'] = changes_list
-        
         existing_history.append(history_dict)
-
-        # Keep only last 50 records to prevent file from growing too large
-        if len(existing_history) > 50:
-            existing_history = existing_history[-50:]
-
-        with open(history_file, 'w', encoding='utf-8') as f:
-            json.dump(existing_history, f, indent=2, ensure_ascii=False)
-
-        return True
+        
+        # Keep only last 100 records to prevent file from growing too large
+        if len(existing_history) > 100:
+            existing_history = existing_history[-100:]
+        
+        # Save updated history
+        success, _, error = safe_file_operation('write', history_file, existing_history)
+        
+        if success:
+            logger.info(f"Successfully saved change history to {history_file}")
+            return True
+        else:
+            logger.error(f"Failed to save change history: {error}")
+            return False
+        
     except Exception as e:
-        print(f"Error saving change history: {e}")
+        logger.error(f"Critical error in save_change_history: {str(e)}")
         return False
 
 
 def load_change_history(history_file: str = "change_history.json") -> List[ChangeHistory]:
     """
-    Load change history from file for version control functionality.
-
+    Load change history from file with comprehensive error handling
+    
     Args:
         history_file: File containing history records
-
+    
     Returns:
-        List of ChangeHistory objects
+        List of ChangeHistory objects (empty list if loading fails)
     """
     try:
-        if not os.path.exists(history_file):
+        success, data, error = safe_file_operation('read', history_file)
+        
+        if not success:
+            logger.info(f"No change history file found: {history_file}")
             return []
-
-        with open(history_file, 'r', encoding='utf-8') as f:
-            history_data = json.load(f)
-
+        
+        if not data or not isinstance(data, list):
+            logger.warning(f"Invalid change history data in {history_file}")
+            return []
+        
         # Convert back to ChangeHistory objects
         history_objects = []
-        for record in history_data:
+        for i, record in enumerate(data):
             try:
+                if not isinstance(record, dict):
+                    logger.warning(f"Skipping invalid history record {i}: not a dictionary")
+                    continue
+                
                 # Convert ISO timestamp back to datetime
-                if isinstance(record['timestamp'], str):
-                    record['timestamp'] = datetime.fromisoformat(record['timestamp'])
+                if 'timestamp' in record and isinstance(record['timestamp'], str):
+                    try:
+                        record['timestamp'] = datetime.fromisoformat(record['timestamp'])
+                    except ValueError:
+                        record['timestamp'] = datetime.now()
                 
                 # Convert changes back to ProposedChange objects
                 changes = []
                 for change_data in record.get('changes_applied', []):
-                    # Handle datetime conversion if needed
-                    if 'created_at' in change_data and isinstance(change_data['created_at'], str):
-                        change_data['created_at'] = datetime.fromisoformat(change_data['created_at'])
-                    
-                    change = ProposedChange(**change_data)
-                    changes.append(change)
+                    try:
+                        if not isinstance(change_data, dict):
+                            continue
+                        
+                        # Handle datetime conversion if needed
+                        if 'created_at' in change_data and isinstance(change_data['created_at'], str):
+                            try:
+                                change_data['created_at'] = datetime.fromisoformat(change_data['created_at'])
+                            except ValueError:
+                                change_data['created_at'] = datetime.now()
+                        
+                        change = ProposedChange(**change_data)
+                        changes.append(change)
+                        
+                    except Exception as e:
+                        logger.warning(f"Skipping invalid change in record {i}: {str(e)}")
+                        continue
+                
                 record['changes_applied'] = changes
                 
                 history_objects.append(ChangeHistory(**record))
-            except (ValueError, KeyError, TypeError) as e:
-                print(f"Skipping invalid history record: {e}")
+                
+            except Exception as e:
+                logger.warning(f"Skipping invalid history record {i}: {str(e)}")
                 continue
-
+        
+        logger.info(f"Loaded {len(history_objects)} change history records")
         return history_objects
+        
     except Exception as e:
-        print(f"Error loading change history: {e}")
+        logger.error(f"Critical error loading change history: {str(e)}")
         return []
 
 
-# ==================== CHANGE APPLICATION AND VALIDATION ====================
+# ==================== SAFE CHANGE APPLICATION AND VALIDATION ====================
 
 def apply_changes_to_bmc(
     bmc: BusinessModelCanvas,
     changes: List[ProposedChange]
 ) -> BusinessModelCanvas:
     """
-    Apply a list of proposed changes to a business model canvas.
-    Implements idempotent behavior and conflict resolution.
-
+    Apply a list of proposed changes to a business model canvas with comprehensive error handling
+    
     Args:
         bmc: Current business model canvas
         changes: List of changes to apply
-
+    
     Returns:
         Updated business model canvas
     """
-    # Create a copy to avoid modifying the original
-    updated_bmc = BusinessModelCanvas(**bmc.dict())
-
-    # Apply changes with conflict resolution
-    for change in changes:
+    try:
+        if bmc is None:
+            raise ValueError("Cannot apply changes to None business model")
+        
+        if not changes:
+            logger.info("No changes to apply")
+            return bmc
+        
+        # Create a copy to avoid modifying the original
         try:
-            section_values = list(getattr(updated_bmc, change.canvas_section, []))
-
-            if change.change_type == ChangeType.ADD:
-                # Avoid duplicates (idempotent behavior)
-                if (change.proposed_value.strip() and 
-                    change.proposed_value not in section_values):
-                    section_values.append(change.proposed_value.strip())
-
-            elif change.change_type == ChangeType.MODIFY and change.current_value:
-                try:
-                    index = section_values.index(change.current_value)
-                    if change.proposed_value.strip():
-                        section_values[index] = change.proposed_value.strip()
-                except ValueError:
-                    # If current value not found, add the new value if it's valid
-                    # This provides graceful handling for concurrent modifications
-                    if change.proposed_value.strip():
-                        section_values.append(change.proposed_value.strip())
-
-            elif change.change_type == ChangeType.REMOVE and change.current_value:
-                try:
-                    section_values.remove(change.current_value)
-                except ValueError:
-                    # Value not found, ignore (idempotent behavior)
-                    pass
-
-            # Update the section with modified values
-            setattr(updated_bmc, change.canvas_section, section_values)
-            
+            updated_bmc = BusinessModelCanvas(**bmc.dict())
         except Exception as e:
-            print(f"Warning: Could not apply change to {change.canvas_section}: {e}")
-            continue
+            logger.error(f"Failed to create BMC copy: {str(e)}")
+            raise ValueError(f"Cannot create business model copy: {str(e)}")
+        
+        successful_changes = 0
+        failed_changes = 0
+        
+        # Apply changes with conflict resolution
+        for i, change in enumerate(changes):
+            try:
+                if not isinstance(change, ProposedChange):
+                    logger.warning(f"Skipping invalid change {i}: not a ProposedChange object")
+                    failed_changes += 1
+                    continue
+                
+                # Validate canvas section
+                if not hasattr(updated_bmc, change.canvas_section):
+                    logger.warning(f"Skipping change {i}: invalid canvas section '{change.canvas_section}'")
+                    failed_changes += 1
+                    continue
+                
+                section_values = list(getattr(updated_bmc, change.canvas_section, []))
+                
+                if change.change_type == ChangeType.ADD:
+                    # Avoid duplicates (idempotent behavior)
+                    if (change.proposed_value and 
+                        change.proposed_value.strip() and 
+                        change.proposed_value not in section_values):
+                        section_values.append(change.proposed_value.strip())
+                        successful_changes += 1
+                    else:
+                        logger.info(f"Skipping duplicate ADD change {i}")
+                
+                elif change.change_type == ChangeType.MODIFY and change.current_value:
+                    try:
+                        index = section_values.index(change.current_value)
+                        if change.proposed_value and change.proposed_value.strip():
+                            section_values[index] = change.proposed_value.strip()
+                            successful_changes += 1
+                    except ValueError:
+                        # If current value not found, add the new value if it's valid
+                        if change.proposed_value and change.proposed_value.strip():
+                            section_values.append(change.proposed_value.strip())
+                            successful_changes += 1
+                            logger.info(f"MODIFY change {i}: current value not found, added new value")
+                
+                elif change.change_type == ChangeType.REMOVE and change.current_value:
+                    try:
+                        section_values.remove(change.current_value)
+                        successful_changes += 1
+                    except ValueError:
+                        # Value not found, ignore (idempotent behavior)
+                        logger.info(f"REMOVE change {i}: value not found (idempotent)")
+                
+                # Update the section with modified values
+                setattr(updated_bmc, change.canvas_section, section_values)
+                
+            except Exception as e:
+                logger.warning(f"Failed to apply change {i} to {change.canvas_section}: {str(e)}")
+                failed_changes += 1
+                continue
+        
+        # Update timestamp and increment version
+        try:
+            updated_bmc.last_updated = datetime.now()
+            updated_bmc._increment_version()
+        except Exception as e:
+            logger.warning(f"Failed to update BMC metadata: {str(e)}")
+        
+        logger.info(f"Applied {successful_changes} changes successfully, {failed_changes} failed")
+        return updated_bmc
+        
+    except Exception as e:
+        logger.error(f"Critical error in apply_changes_to_bmc: {str(e)}")
+        raise Exception(f"Failed to apply changes: {str(e)}")
 
-    # Update timestamp and increment version
-    updated_bmc.last_updated = datetime.now()
-    updated_bmc._increment_version()
-    
-    return updated_bmc
 
-
-def validate_change_safety(change: ProposedChange) -> bool:
+def validate_change_safety(change: ProposedChange) -> Tuple[bool, List[str]]:
     """
-    Determine if a change is safe for automatic application in auto-mode.
-    Enhanced safety criteria for production-ready auto-mode.
-
+    Determine if a change is safe for automatic application with detailed reasoning
+    
     Args:
         change: ProposedChange to validate
-
-    Returns:
-        True if safe for auto-application
-    """
-    # Basic confidence threshold
-    if change.confidence_score < 0.8:  # Higher threshold for auto-mode
-        return False
-
-    # No removals in auto-mode (too risky)
-    if change.change_type == ChangeType.REMOVE:
-        return False
-
-    # Check for critical sections that need manual review
-    critical_sections = {'revenue_streams', 'cost_structure'}
-    if change.canvas_section in critical_sections:
-        return False  # Always require manual approval for financial sections
-
-    # Validate proposed value is substantial and not generic
-    if not change.proposed_value or len(change.proposed_value.strip()) < 10:
-        return False
-        
-    # Check for placeholder/generic content
-    generic_terms = {'tbd', 'to be determined', 'placeholder', 'example', 'test', 
-                    'lorem ipsum', 'sample', 'demo', 'todo'}
-    if change.proposed_value.lower().strip() in generic_terms:
-        return False
     
-    # Check reasoning quality for auto-mode
-    if not change.reasoning or len(change.reasoning.strip()) < 30:
-        return False
-
-    return True
+    Returns:
+        Tuple of (is_safe: bool, reasons: List[str])
+    """
+    try:
+        if change is None:
+            return False, ["Change is None"]
+        
+        safety_issues = []
+        
+        # Basic confidence threshold
+        if change.confidence_score < 0.8:
+            safety_issues.append(f"Confidence score too low: {change.confidence_score:.2f} < 0.8")
+        
+        # No removals in auto-mode (too risky)
+        if change.change_type == ChangeType.REMOVE:
+            safety_issues.append("Removal operations not allowed in auto-mode")
+        
+        # Check for critical sections that need manual review
+        critical_sections = {'revenue_streams', 'cost_structure'}
+        if change.canvas_section in critical_sections:
+            safety_issues.append(f"Critical section '{change.canvas_section}' requires manual approval")
+        
+        # Validate proposed value is substantial and not generic
+        if not change.proposed_value or len(change.proposed_value.strip()) < 10:
+            safety_issues.append("Proposed value too short or empty")
+        
+        # Check for placeholder/generic content
+        generic_terms = {'tbd', 'to be determined', 'placeholder', 'example', 'test', 
+                        'lorem ipsum', 'sample', 'demo', 'todo'}
+        if change.proposed_value.lower().strip() in generic_terms:
+            safety_issues.append("Proposed value contains generic/placeholder content")
+        
+        # Check reasoning quality for auto-mode
+        if not change.reasoning or len(change.reasoning.strip()) < 30:
+            safety_issues.append("Reasoning too short or missing")
+        
+        # Check for high-risk indicators in reasoning
+        high_risk_indicators = ['major', 'significant', 'fundamental', 'critical', 'breaking', 'removing']
+        if any(indicator in change.reasoning.lower() for indicator in high_risk_indicators):
+            safety_issues.append("High-risk indicators found in reasoning")
+        
+        is_safe = len(safety_issues) == 0
+        return is_safe, safety_issues
+        
+    except Exception as e:
+        logger.error(f"Error validating change safety: {str(e)}")
+        return False, [f"Validation error: {str(e)}"]
 
 
 def detect_change_conflicts(changes: List[ProposedChange]) -> List[str]:
     """
-    Detect potential conflicts between proposed changes.
-
+    Detect potential conflicts between proposed changes with enhanced analysis
+    
     Args:
         changes: List of proposed changes
-
+    
     Returns:
         List of conflict descriptions
     """
-    conflicts = []
-    
-    # Group changes by section
-    section_changes = {}
-    for change in changes:
-        section = change.canvas_section
-        if section not in section_changes:
-            section_changes[section] = []
-        section_changes[section].append(change)
-    
-    # Check for conflicts within each section
-    for section, section_change_list in section_changes.items():
-        if len(section_change_list) > 1:
-            # Multiple changes to same section - check for conflicts
-            for i, change1 in enumerate(section_change_list):
-                for change2 in section_change_list[i+1:]:
-                    if _changes_conflict(change1, change2):
-                        conflicts.append(
-                            f"Conflict in {section}: {change1.change_type.value} vs {change2.change_type.value}"
-                        )
-    
-    return conflicts
+    try:
+        if not changes:
+            return []
+        
+        conflicts = []
+        
+        # Group changes by section
+        section_changes = {}
+        for i, change in enumerate(changes):
+            try:
+                if not isinstance(change, ProposedChange):
+                    conflicts.append(f"Change {i}: Invalid change type")
+                    continue
+                
+                section = change.canvas_section
+                if section not in section_changes:
+                    section_changes[section] = []
+                section_changes[section].append((i, change))
+                
+            except Exception as e:
+                conflicts.append(f"Change {i}: Error processing - {str(e)}")
+        
+        # Check for conflicts within each section
+        for section, section_change_list in section_changes.items():
+            if len(section_change_list) > 1:
+                # Multiple changes to same section - check for conflicts
+                for i, (idx1, change1) in enumerate(section_change_list):
+                    for idx2, change2 in section_change_list[i+1:]:
+                        try:
+                            if _changes_conflict(change1, change2):
+                                conflicts.append(
+                                    f"Conflict in {section}: Change {idx1} ({change1.change_type.value}) "
+                                    f"vs Change {idx2} ({change2.change_type.value})"
+                                )
+                        except Exception as e:
+                            conflicts.append(f"Error checking conflict between changes {idx1} and {idx2}: {str(e)}")
+        
+        return conflicts
+        
+    except Exception as e:
+        logger.error(f"Error detecting change conflicts: {str(e)}")
+        return [f"Conflict detection error: {str(e)}"]
 
 
 def _changes_conflict(change1: ProposedChange, change2: ProposedChange) -> bool:
-    """Check if two changes conflict with each other."""
-    # Same value being modified differently
-    if (change1.current_value and change2.current_value and 
-        change1.current_value == change2.current_value and
-        change1.proposed_value != change2.proposed_value):
-        return True
-    
-    # One removes what the other modifies
-    if (change1.change_type == ChangeType.REMOVE and 
-        change2.change_type == ChangeType.MODIFY and
-        change1.current_value == change2.current_value):
-        return True
-    
-    return False
+    """Check if two changes conflict with each other with enhanced logic"""
+    try:
+        # Same value being modified differently
+        if (change1.current_value and change2.current_value and 
+            change1.current_value == change2.current_value and
+            change1.proposed_value != change2.proposed_value):
+            return True
+        
+        # One removes what the other modifies
+        if (change1.change_type == ChangeType.REMOVE and 
+            change2.change_type == ChangeType.MODIFY and
+            change1.current_value == change2.current_value):
+            return True
+        
+        # Both try to add the same value
+        if (change1.change_type == ChangeType.ADD and 
+            change2.change_type == ChangeType.ADD and
+            change1.proposed_value == change2.proposed_value):
+            return True
+        
+        return False
+        
+    except Exception as e:
+        logger.error(f"Error checking change conflict: {str(e)}")
+        return False  # Assume no conflict if we can't determine
 
 
 # ==================== DUPLICATE DETECTION (IDEMPOTENT BEHAVIOR) ====================
 
 def generate_change_hash(change: ProposedChange) -> str:
     """
-    Generate a hash for a change to detect duplicates.
-    Essential for idempotent behavior.
-
+    Generate a hash for a change to detect duplicates with enhanced algorithm
+    
     Args:
         change: ProposedChange to hash
-
+    
     Returns:
         MD5 hash string
     """
-    change_string = f"{change.canvas_section}_{change.change_type.value}_{change.proposed_value}"
-    return hashlib.md5(change_string.encode()).hexdigest()
+    try:
+        if change is None:
+            return "null_change"
+        
+        change_string = f"{change.canvas_section}_{change.change_type.value}_{change.proposed_value}_{change.current_value}"
+        return hashlib.md5(change_string.encode()).hexdigest()
+        
+    except Exception as e:
+        logger.error(f"Error generating change hash: {str(e)}")
+        return f"error_{str(hash(str(change)))}"
 
 
 def generate_action_hash(action_data: Dict[str, Any]) -> str:
     """
-    Generate a hash for an action to detect duplicate processing.
-
+    Generate a hash for an action to detect duplicate processing with enhanced algorithm
+    
     Args:
         action_data: Dictionary containing action information
-
+    
     Returns:
         MD5 hash string
     """
-    # Use title and results_data as key components
-    action_string = f"{action_data.get('title', '')}{action_data.get('results_data', '')}{action_data.get('outcome', '')}"
-    return hashlib.md5(action_string.encode()).hexdigest()
+    try:
+        if not action_data:
+            return "empty_action"
+        
+        # Use title, results_data, and outcome as key components
+        title = action_data.get('title', '')
+        results = action_data.get('results_data', '')
+        outcome = action_data.get('outcome', '')
+        
+        action_string = f"{title}_{results}_{outcome}"
+        return hashlib.md5(action_string.encode()).hexdigest()
+        
+    except Exception as e:
+        logger.error(f"Error generating action hash: {str(e)}")
+        return f"error_{str(hash(str(action_data)))}"
 
 
 def deduplicate_changes(changes: List[ProposedChange]) -> List[ProposedChange]:
     """
-    Remove duplicate changes based on content hash.
-    Ensures idempotent behavior when applying changes.
-
+    Remove duplicate changes based on content hash with enhanced logic
+    
     Args:
         changes: List of proposed changes
-
+    
     Returns:
         List of unique changes
     """
-    seen_hashes = set()
-    unique_changes = []
-    
-    for change in changes:
-        change_hash = generate_change_hash(change)
-        if change_hash not in seen_hashes:
-            seen_hashes.add(change_hash)
-            unique_changes.append(change)
-    
-    return unique_changes
+    try:
+        if not changes:
+            return []
+        
+        seen_hashes = set()
+        unique_changes = []
+        duplicate_count = 0
+        
+        for i, change in enumerate(changes):
+            try:
+                if not isinstance(change, ProposedChange):
+                    logger.warning(f"Skipping invalid change {i}: not a ProposedChange object")
+                    continue
+                
+                change_hash = generate_change_hash(change)
+                if change_hash not in seen_hashes:
+                    seen_hashes.add(change_hash)
+                    unique_changes.append(change)
+                else:
+                    duplicate_count += 1
+                    logger.info(f"Removing duplicate change {i}: {change.canvas_section} - {change.change_type.value}")
+                    
+            except Exception as e:
+                logger.warning(f"Error processing change {i} for deduplication: {str(e)}")
+                continue
+        
+        if duplicate_count > 0:
+            logger.info(f"Removed {duplicate_count} duplicate changes")
+        
+        return unique_changes
+        
+    except Exception as e:
+        logger.error(f"Error in deduplicate_changes: {str(e)}")
+        return changes  # Return original list if deduplication fails
 
 
 # ==================== UI HELPER FUNCTIONS ====================
 
 def format_proposed_changes(changes: List[ProposedChange]) -> List[Dict[str, Any]]:
     """
-    Format proposed changes for human-readable display in the UI.
-
+    Format proposed changes for human-readable display with comprehensive error handling
+    
     Args:
         changes: List of ProposedChange objects
-
+    
     Returns:
         List of formatted change dictionaries
     """
-    formatted_changes = []
-
-    for change in changes:
-        formatted_change = {
-            "section": change.canvas_section.replace("_", " ").title(),
-            "action": change.change_type.value.title(),
-            "description": _format_change_description(change),
-            "reasoning": change.reasoning,
-            "confidence": f"{change.confidence_score:.0%}",
-            "confidence_level": _get_confidence_category(change.confidence_score),
-            "safety_level": "Safe for Auto-mode" if validate_change_safety(change) else "Manual Review Required",
-            "impact_assessment": change.impact_assessment or "medium"
-        }
-        formatted_changes.append(formatted_change)
-
-    return formatted_changes
+    try:
+        if not changes:
+            return []
+        
+        formatted_changes = []
+        
+        for i, change in enumerate(changes):
+            try:
+                if not isinstance(change, ProposedChange):
+                    logger.warning(f"Skipping invalid change {i}: not a ProposedChange object")
+                    continue
+                
+                # Safe access to change properties
+                section = getattr(change, 'canvas_section', 'unknown').replace("_", " ").title()
+                change_type = getattr(change, 'change_type', ChangeType.ADD).value.title()
+                confidence_score = getattr(change, 'confidence_score', 0.0)
+                reasoning = getattr(change, 'reasoning', 'No reasoning provided')
+                impact = getattr(change, 'impact_assessment', 'medium')
+                
+                # Format description safely
+                try:
+                    description = _format_change_description(change)
+                except Exception as e:
+                    description = f"Error formatting description: {str(e)}"
+                
+                # Format confidence safely
+                try:
+                    confidence_str = f"{confidence_score:.0%}"
+                    confidence_level = _get_confidence_category(confidence_score)
+                except Exception as e:
+                    confidence_str = "Unknown"
+                    confidence_level = "Unknown"
+                
+                # Determine safety level
+                try:
+                    is_safe, safety_reasons = validate_change_safety(change)
+                    safety_level = "Safe for Auto-mode" if is_safe else "Manual Review Required"
+                except Exception as e:
+                    safety_level = "Safety check failed"
+                
+                formatted_change = {
+                    "section": section,
+                    "action": change_type,
+                    "description": description,
+                    "reasoning": reasoning,
+                    "confidence": confidence_str,
+                    "confidence_level": confidence_level,
+                    "safety_level": safety_level,
+                    "impact_assessment": impact
+                }
+                
+                formatted_changes.append(formatted_change)
+                
+            except Exception as e:
+                logger.warning(f"Error formatting change {i}: {str(e)}")
+                # Add error entry to maintain index consistency
+                formatted_changes.append({
+                    "section": "Error",
+                    "action": "Error",
+                    "description": f"Error formatting change: {str(e)}",
+                    "reasoning": "Error occurred during formatting",
+                    "confidence": "0%",
+                    "confidence_level": "Error",
+                    "safety_level": "Error",
+                    "impact_assessment": "unknown"
+                })
+        
+        return formatted_changes
+        
+    except Exception as e:
+        logger.error(f"Critical error in format_proposed_changes: {str(e)}")
+        return [{"section": "Critical Error", "action": "Error", 
+                "description": f"Critical formatting error: {str(e)}", 
+                "reasoning": "System error", "confidence": "0%", 
+                "confidence_level": "Error", "safety_level": "Error", 
+                "impact_assessment": "unknown"}]
 
 
 def _format_change_description(change: ProposedChange) -> str:
-    """Format individual change description for display."""
-    if change.change_type == ChangeType.ADD:
-        return f"Add: {_truncate_text(change.proposed_value, 80)}"
-    elif change.change_type == ChangeType.MODIFY and change.current_value:
-        return f"Change '{_truncate_text(change.current_value, 30)}' to '{_truncate_text(change.proposed_value, 30)}'"
-    elif change.change_type == ChangeType.REMOVE and change.current_value:
-        return f"Remove: {_truncate_text(change.current_value, 60)}"
-    else:
-        return _truncate_text(change.proposed_value, 60)
+    """Format individual change description for display with error handling"""
+    try:
+        if change.change_type == ChangeType.ADD:
+            return f"Add: {_truncate_text(change.proposed_value, 80)}"
+        elif change.change_type == ChangeType.MODIFY and change.current_value:
+            return f"Change '{_truncate_text(change.current_value, 30)}' to '{_truncate_text(change.proposed_value, 30)}'"
+        elif change.change_type == ChangeType.REMOVE and change.current_value:
+            return f"Remove: {_truncate_text(change.current_value, 60)}"
+        else:
+            return _truncate_text(change.proposed_value, 60)
+    except Exception as e:
+        return f"Error formatting description: {str(e)}"
 
 
 def _truncate_text(text: str, max_length: int) -> str:
-    """Truncate text to specified length with ellipsis."""
-    if not text or len(text) <= max_length:
-        return text or ""
-    return text[:max_length-3] + "..."
+    """Truncate text to specified length with ellipsis and error handling"""
+    try:
+        if not text:
+            return ""
+        
+        text_str = str(text)
+        if len(text_str) <= max_length:
+            return text_str
+        return text_str[:max_length-3] + "..."
+        
+    except Exception as e:
+        return f"[Error: {str(e)}]"
 
 
 def _get_confidence_category(score: float) -> str:
-    """Get confidence category label for UI display."""
-    if score >= 0.8:
-        return "High"
-    elif score >= 0.6:
-        return "Medium"
-    else:
-        return "Low"
+    """Get confidence category label for UI display with error handling"""
+    try:
+        if score >= 0.8:
+            return "High"
+        elif score >= 0.6:
+            return "Medium"
+        else:
+            return "Low"
+    except Exception:
+        return "Unknown"
 
 
-def create_before_after_comparison(
-    old_bmc: BusinessModelCanvas,
-    new_bmc: BusinessModelCanvas
-) -> Dict[str, Dict[str, Any]]:
+# ==================== EXPORT FUNCTIONS ====================
+
+def export_business_model_to_csv(bmc: BusinessModelCanvas, file_path: str = "business_model.csv") -> Tuple[bool, str]:
     """
-    Create side-by-side comparison of BMC states for version control display.
-
-    Args:
-        old_bmc: Previous BMC state
-        new_bmc: Updated BMC state
-
-    Returns:
-        Dictionary with before/after comparison for each section
-    """
-    comparison = {}
-
-    sections = [
-        'customer_segments', 'value_propositions', 'channels', 'customer_relationships',
-        'revenue_streams', 'key_resources', 'key_activities', 'key_partnerships', 'cost_structure'
-    ]
-
-    for section in sections:
-        old_values = getattr(old_bmc, section, [])
-        new_values = getattr(new_bmc, section, [])
-
-        # Calculate change metrics
-        added_items = set(new_values) - set(old_values)
-        removed_items = set(old_values) - set(new_values)
-        unchanged_items = set(old_values) & set(new_values)
-
-        comparison[section] = {
-            "before": old_values,
-            "after": new_values,
-            "changed": old_values != new_values,
-            "added_count": len(added_items),
-            "removed_count": len(removed_items),
-            "unchanged_count": len(unchanged_items),
-            "change_summary": _generate_section_change_summary(added_items, removed_items)
-        }
-
-    return comparison
-
-
-def _generate_section_change_summary(added: set, removed: set) -> str:
-    """Generate a summary of changes for a section."""
-    summary_parts = []
+    Export business model canvas to CSV format with comprehensive error handling
     
-    if added:
-        summary_parts.append(f"Added {len(added)} item(s)")
-    
-    if removed:
-        summary_parts.append(f"Removed {len(removed)} item(s)")
-    
-    if not summary_parts:
-        return "No changes"
-    
-    return ", ".join(summary_parts)
-
-
-def generate_change_summary(applied_changes: List[ProposedChange]) -> str:
-    """
-    Generate a human-readable summary of applied changes for notifications.
-
-    Args:
-        applied_changes: List of changes that were applied
-
-    Returns:
-        Summary text for UI notifications
-    """
-    if not applied_changes:
-        return "No changes were applied."
-
-    change_count = len(applied_changes)
-    sections_affected = len(set(change.canvas_section for change in applied_changes))
-
-    summary = f"Applied {change_count} change(s) to {sections_affected} section(s):\n"
-
-    # Group changes by section
-    by_section = {}
-    for change in applied_changes:
-        section = change.canvas_section.replace("_", " ").title()
-        if section not in by_section:
-            by_section[section] = []
-        by_section[section].append(change.change_type.value.title())
-
-    for section, actions in by_section.items():
-        action_counts = {}
-        for action in actions:
-            action_counts[action] = action_counts.get(action, 0) + 1
-        
-        action_summary = ", ".join(f"{count} {action.lower()}" if count > 1 else action.lower() 
-                                  for action, count in action_counts.items())
-        summary += f"• {section}: {action_summary}\n"
-
-    return summary.strip()
-
-
-# ==================== VERSION CONTROL FUNCTIONS ====================
-
-def can_undo_change(history: List[ChangeHistory]) -> bool:
-    """
-    Check if there are changes that can be undone.
-
-    Args:
-        history: List of change history records
-
-    Returns:
-        True if undo is possible
-    """
-    return len(history) > 0
-
-
-def get_last_change_summary(history: List[ChangeHistory]) -> Optional[str]:
-    """
-    Get a summary of the last change for undo confirmation.
-
-    Args:
-        history: List of change history records
-
-    Returns:
-        Summary string or None if no history
-    """
-    if not history:
-        return None
-    
-    last_change = history[-1]
-    change_count = len(last_change.changes_applied)
-    timestamp = last_change.timestamp.strftime("%H:%M:%S")
-    
-    return f"Undo {change_count} change(s) from {timestamp}?"
-
-
-def validate_bmc_integrity(bmc: BusinessModelCanvas) -> List[str]:
-    """
-    Validate business model canvas integrity and return any issues.
-    Used for quality assurance after changes are applied.
-
-    Args:
-        bmc: BusinessModelCanvas to validate
-
-    Returns:
-        List of validation issues (empty if no issues)
-    """
-    issues = []
-    
-    sections = [
-        'customer_segments', 'value_propositions', 'channels', 'customer_relationships',
-        'revenue_streams', 'key_resources', 'key_activities', 'key_partnerships', 'cost_structure'
-    ]
-    
-    # Check for completely empty sections
-    empty_sections = []
-    for section in sections:
-        values = getattr(bmc, section, [])
-        if not values:
-            empty_sections.append(section.replace('_', ' ').title())
-    
-    if empty_sections:
-        issues.append(f"Empty sections: {', '.join(empty_sections)}")
-    
-    # Check for placeholder content
-    all_values = []
-    for section in sections:
-        all_values.extend(getattr(bmc, section, []))
-    
-    placeholder_terms = {'tbd', 'to be determined', 'placeholder', 'example', 'test', 'todo'}
-    placeholder_count = sum(1 for value in all_values if value.lower().strip() in placeholder_terms)
-    
-    if placeholder_count > 0:
-        issues.append(f"{placeholder_count} placeholder values found - replace with specific content")
-    
-    # Check for very short descriptions
-    short_items = [item for item in all_values if len(item.strip()) < 10]
-    if len(short_items) > 0:
-        issues.append(f"{len(short_items)} items are very short (< 10 characters)")
-    
-    return issues
-
-
-# ==================== EXPORT FUNCTIONS (SIMPLIFIED FOR ASSIGNMENT) ====================
-
-def export_business_model_to_csv(bmc: BusinessModelCanvas, file_path: str = "business_model.csv") -> bool:
-    """
-    Export business model canvas to CSV format for external use.
-
     Args:
         bmc: BusinessModelCanvas to export
         file_path: Path for CSV export
-
+    
     Returns:
-        True if successful
+        Tuple of (success: bool, message: str)
     """
     try:
+        if bmc is None:
+            return False, "Cannot export None business model"
+        
         sections = [
             'customer_segments', 'value_propositions', 'channels', 'customer_relationships',
             'revenue_streams', 'key_resources', 'key_activities', 'key_partnerships', 'cost_structure'
         ]
-
+        
         # Find the maximum number of items in any section
-        max_items = max(len(getattr(bmc, section, [])) for section in sections) or 1
+        max_items = 1
+        for section in sections:
+            try:
+                items = getattr(bmc, section, [])
+                max_items = max(max_items, len(items))
+            except Exception:
+                continue
         
         # Create data dictionary
         data = {}
         for section in sections:
-            section_items = getattr(bmc, section, [])
-            column_name = section.replace('_', ' ').title()
-            
-            # Pad with empty strings to match max_items length
-            padded_items = section_items + [''] * (max_items - len(section_items))
-            data[column_name] = padded_items
-
-        # Add metadata
-        data['Last Updated'] = [bmc.last_updated.strftime('%Y-%m-%d %H:%M')] + [''] * (max_items - 1)
-        data['Version'] = [bmc.version] + [''] * (max_items - 1)
+            try:
+                section_items = getattr(bmc, section, [])
+                column_name = section.replace('_', ' ').title()
+                
+                # Pad with empty strings to match max_items length
+                padded_items = section_items + [''] * (max_items - len(section_items))
+                data[column_name] = padded_items
+            except Exception as e:
+                logger.warning(f"Error processing section {section}: {str(e)}")
+                data[section.replace('_', ' ').title()] = [''] * max_items
         
-        df = pd.DataFrame(data)
-        df.to_csv(file_path, index=False, encoding='utf-8')
-        return True
+        # Add metadata
+        try:
+            data['Last Updated'] = [bmc.last_updated.strftime('%Y-%m-%d %H:%M')] + [''] * (max_items - 1)
+            data['Version'] = [bmc.version] + [''] * (max_items - 1)
+        except Exception:
+            data['Last Updated'] = ['Unknown'] + [''] * (max_items - 1)
+            data['Version'] = ['Unknown'] + [''] * (max_items - 1)
+        
+        # Create DataFrame and save
+        try:
+            df = pd.DataFrame(data)
+            df.to_csv(file_path, index=False, encoding='utf-8')
+            return True, f"Successfully exported to {file_path}"
+        except Exception as e:
+            return False, f"Failed to save CSV file: {str(e)}"
+        
     except Exception as e:
-        print(f"Error exporting to CSV: {e}")
-        return False
+        logger.error(f"Critical error in CSV export: {str(e)}")
+        return False, f"Critical export error: {str(e)}"
 
 
-# ==================== UTILITY FUNCTIONS FOR UI COMPONENTS ====================
+# ==================== VALIDATION AND UTILITY FUNCTIONS ====================
+
+def validate_bmc_integrity(bmc: BusinessModelCanvas) -> Tuple[bool, List[str]]:
+    """
+    Validate business model canvas integrity with comprehensive checks
+    
+    Args:
+        bmc: BusinessModelCanvas to validate
+    
+    Returns:
+        Tuple of (is_valid: bool, issues: List[str])
+    """
+    try:
+        if bmc is None:
+            return False, ["Business model is None"]
+        
+        issues = []
+        
+        sections = [
+            'customer_segments', 'value_propositions', 'channels', 'customer_relationships',
+            'revenue_streams', 'key_resources', 'key_activities', 'key_partnerships', 'cost_structure'
+        ]
+        
+        # Check for completely empty sections
+        empty_sections = []
+        for section in sections:
+            try:
+                values = getattr(bmc, section, [])
+                if not values:
+                    empty_sections.append(section.replace('_', ' ').title())
+            except Exception as e:
+                issues.append(f"Error accessing section {section}: {str(e)}")
+        
+        if len(empty_sections) > 5:  # More than half empty is concerning
+            issues.append(f"Too many empty sections ({len(empty_sections)}): {', '.join(empty_sections)}")
+        
+        # Check for placeholder content
+        try:
+            all_values = []
+            for section in sections:
+                try:
+                    values = getattr(bmc, section, [])
+                    all_values.extend(values)
+                except Exception:
+                    continue
+            
+            if all_values:
+                placeholder_terms = {'tbd', 'to be determined', 'placeholder', 'example', 'test', 'todo'}
+                placeholder_count = sum(1 for value in all_values if str(value).lower().strip() in placeholder_terms)
+                
+                if placeholder_count > 0:
+                    issues.append(f"{placeholder_count} placeholder values found - replace with specific content")
+                
+                # Check for very short descriptions
+                short_items = [item for item in all_values if len(str(item).strip()) < 10]
+                if len(short_items) > len(all_values) * 0.5:  # More than 50% short items
+                    issues.append(f"{len(short_items)} items are very short (< 10 characters)")
+                    
+        except Exception as e:
+            issues.append(f"Error validating content quality: {str(e)}")
+        
+        # Check metadata
+        try:
+            if not hasattr(bmc, 'version') or not bmc.version:
+                issues.append("Missing version information")
+            
+            if not hasattr(bmc, 'last_updated') or not bmc.last_updated:
+                issues.append("Missing last updated timestamp")
+                
+        except Exception as e:
+            issues.append(f"Error validating metadata: {str(e)}")
+        
+        is_valid = len(issues) == 0
+        return is_valid, issues
+        
+    except Exception as e:
+        logger.error(f"Error validating BMC integrity: {str(e)}")
+        return False, [f"Validation error: {str(e)}"]
+
 
 def format_time_ago(timestamp: datetime) -> str:
-    """Format timestamp as 'time ago' string for UI display."""
-    now = datetime.now()
-    diff = now - timestamp
-    
-    if diff.days > 0:
-        return f"{diff.days} days ago"
-    elif diff.seconds > 3600:
-        hours = diff.seconds // 3600
-        return f"{hours} hours ago"
-    elif diff.seconds > 60:
-        minutes = diff.seconds // 60
-        return f"{minutes} minutes ago"
-    else:
-        return "Just now"
+    """Format timestamp as 'time ago' string with error handling"""
+    try:
+        if timestamp is None:
+            return "Unknown"
+        
+        now = datetime.now()
+        diff = now - timestamp
+        
+        if diff.days > 0:
+            return f"{diff.days} days ago"
+        elif diff.seconds > 3600:
+            hours = diff.seconds // 3600
+            return f"{hours} hours ago"
+        elif diff.seconds > 60:
+            minutes = diff.seconds // 60
+            return f"{minutes} minutes ago"
+        else:
+            return "Just now"
+            
+    except Exception as e:
+        logger.error(f"Error formatting time: {str(e)}")
+        return "Time unknown"
 
 
 def get_bmc_section_icon(section_name: str) -> str:
-    """Generate appropriate emoji icon for BMC section."""
-    icons = {
-        'customer_segments': '👥',
-        'value_propositions': '💡',
-        'channels': '📡',
-        'customer_relationships': '🤝',
-        'revenue_streams': '💰',
-        'key_resources': '💎',
-        'key_activities': '⚙️',
-        'key_partnerships': '🤝',
-        'cost_structure': '💸'
-    }
-    return icons.get(section_name, '📋')
-
-
-def create_section_summary(bmc: BusinessModelCanvas, section_name: str) -> Dict[str, Any]:
-    """Create a summary for a specific BMC section for UI display."""
-    values = getattr(bmc, section_name, [])
-    
-    return {
-        "section_name": section_name.replace('_', ' ').title(),
-        "icon": get_bmc_section_icon(section_name),
-        "element_count": len(values),
-        "elements": values,
-        "is_empty": len(values) == 0,
-        "quality_score": _assess_content_quality(values) if values else 0.0
-    }
-
-
-def _assess_content_quality(values: List[str]) -> float:
-    """Assess quality of content in a BMC section."""
-    if not values:
-        return 0.0
-    
-    quality_score = 0.0
-    
-    for value in values:
-        value_score = 0.5  # Base score
-        
-        # Length check
-        if len(value) > 20:
-            value_score += 0.2
-        if len(value) > 50:
-            value_score += 0.1
-            
-        # Avoid generic terms
-        generic_terms = {'tbd', 'to be determined', 'placeholder', 'example', 'test'}
-        if value.lower().strip() not in generic_terms:
-            value_score += 0.3
-            
-        quality_score += min(value_score, 1.0)
-    
-    return min(quality_score / len(values), 1.0)
+    """Generate appropriate icon for BMC section with error handling"""
+    try:
+        icons = {
+            'customer_segments': '👥',
+            'value_propositions': '💡',
+            'channels': '📡',
+            'customer_relationships': '🤝',
+            'revenue_streams': '💰',
+            'key_resources': '💎',
+            'key_activities': '⚙️',
+            'key_partnerships': '🤝',
+            'cost_structure': '💸'
+        }
+        return icons.get(section_name, '📋')
+    except Exception:
+        return '📋'
 
 
 # Export key functions for clean imports
 __all__ = [
     # Data management
-    'load_business_model', 'save_business_model', 
+    'load_business_model', 'save_business_model', 'create_fallback_bmc',
     'create_change_history', 'save_change_history', 'load_change_history',
     
     # Change application and validation
@@ -799,11 +1160,10 @@ __all__ = [
     'generate_change_hash', 'generate_action_hash', 'deduplicate_changes',
     
     # UI helpers and formatting
-    'format_proposed_changes', 'create_before_after_comparison', 'generate_change_summary',
-    'create_section_summary', 'format_time_ago', 'get_bmc_section_icon',
+    'format_proposed_changes', 'format_time_ago', 'get_bmc_section_icon',
     
-    # Version control
-    'can_undo_change', 'get_last_change_summary', 'validate_bmc_integrity',
+    # Validation and utilities
+    'validate_bmc_integrity', 'safe_file_operation',
     
     # Export
     'export_business_model_to_csv'
