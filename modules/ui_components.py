@@ -1,6 +1,6 @@
 """
 Reusable UI Components for SIGMA Agentic AI Actions Co-pilot
-Enhanced with Strategic Next Steps Display
+Enhanced with Strategic Next Steps Display and Persistence
 """
 
 import streamlit as st
@@ -91,12 +91,22 @@ def display_enhanced_next_steps(next_steps: List[Dict[str, Any]]):
         st.info("No specific next steps provided.")
         return
     
+    # Handle both new structured format and legacy string format
+    if isinstance(next_steps[0], str):
+        st.subheader("🎯 Suggested Next Experiments")
+        for i, step in enumerate(next_steps, 1):
+            st.write(f"**{i}.** {step}")
+        return
+    
     st.subheader("🎯 Strategic Next Steps")
     st.caption("AI-generated action plan based on your experiment outcome")
     
     # Sort by priority (high first)
     priority_order = {"high": 1, "medium": 2, "low": 3}
-    sorted_steps = sorted(next_steps, key=lambda x: priority_order.get(x.get('priority', 'medium').lower(), 2))
+    try:
+        sorted_steps = sorted(next_steps, key=lambda x: priority_order.get(x.get('priority', 'medium').lower(), 2))
+    except (KeyError, TypeError):
+        sorted_steps = next_steps  # Fallback if sorting fails
     
     for i, step in enumerate(sorted_steps, 1):
         # Handle both dict and string formats
@@ -106,10 +116,9 @@ def display_enhanced_next_steps(next_steps: List[Dict[str, Any]]):
         
         # Rich card layout for detailed next steps
         with st.container():
-            # Create card-like appearance
-            st.markdown(f"""
-            <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; margin: 8px 0; background-color: #fafafa;">
-            </div>
+            # Create visual separation
+            st.markdown("""
+            <div style="border-left: 4px solid #1f77b4; padding-left: 12px; margin: 16px 0;">
             """, unsafe_allow_html=True)
             
             # Header with title and badges
@@ -119,10 +128,12 @@ def display_enhanced_next_steps(next_steps: List[Dict[str, Any]]):
                 st.markdown(f"### {i}. {step.get('title', 'Next Step')}")
             
             with col2:
-                display_priority_badge(step.get('priority', 'medium'))
+                if step.get('priority'):
+                    display_priority_badge(step.get('priority', 'medium'))
             
             with col3:
-                display_difficulty_indicator(step.get('difficulty', 'medium'))
+                if step.get('difficulty'):
+                    display_difficulty_indicator(step.get('difficulty', 'medium'))
             
             # Description
             description = step.get('description', '')
@@ -176,6 +187,7 @@ def display_enhanced_next_steps(next_steps: List[Dict[str, Any]]):
                         for metric in metrics[3:]:
                             st.markdown(f"• {metric}")
             
+            st.markdown("</div>", unsafe_allow_html=True)
             st.markdown("---")
 
 
@@ -356,7 +368,7 @@ def render_sidebar_info(metrics, bmc: BusinessModelCanvas):
 
 
 def render_action_form(sample_actions: Dict[str, Dict[str, str]]) -> Tuple[Optional[Dict[str, str]], Optional[str]]:
-    """Render the action input form with persistent state management"""
+    """Render the action input form with persistent state management and proper edit flow"""
     st.subheader("Log Completed Action")
     
     # Initialize session state for action management
@@ -366,6 +378,8 @@ def render_action_form(sample_actions: Dict[str, Dict[str, str]]) -> Tuple[Optio
         st.session_state.current_action_type = None
     if 'action_selection_changed' not in st.session_state:
         st.session_state.action_selection_changed = False
+    if 'action_edit_mode' not in st.session_state:
+        st.session_state.action_edit_mode = False
     
     # Sample action selector
     use_sample = st.selectbox(
@@ -382,6 +396,7 @@ def render_action_form(sample_actions: Dict[str, Dict[str, str]]) -> Tuple[Optio
         st.session_state.current_action_type = None
         st.session_state.previous_selection = use_sample
         st.session_state.action_selection_changed = True
+        st.session_state.action_edit_mode = False  # Reset edit mode on selection change
     
     if use_sample != "Custom Action":
         # Use selected sample action
@@ -398,6 +413,7 @@ def render_action_form(sample_actions: Dict[str, Dict[str, str]]) -> Tuple[Optio
         # Store in session state
         st.session_state.current_action_data = action_data
         st.session_state.current_action_type = "sample"
+        st.session_state.action_edit_mode = False  # Reset edit mode for sample actions
         
         return action_data, "sample"
     
@@ -405,10 +421,11 @@ def render_action_form(sample_actions: Dict[str, Dict[str, str]]) -> Tuple[Optio
         # Custom action form
         st.write("**Create Custom Action:**")
         
-        # Check if we have stored custom action data
+        # Check if we have stored custom action data AND not in edit mode
         if (st.session_state.current_action_data is not None and 
             st.session_state.current_action_type == "custom" and 
-            not st.session_state.action_selection_changed):
+            not st.session_state.action_selection_changed and
+            not st.session_state.action_edit_mode):
             
             # Display stored custom action
             stored_data = st.session_state.current_action_data
@@ -422,8 +439,8 @@ def render_action_form(sample_actions: Dict[str, Dict[str, str]]) -> Tuple[Optio
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("Edit Custom Action", use_container_width=True):
-                    st.session_state.current_action_data = None
-                    st.session_state.current_action_type = None
+                    # Enable edit mode instead of clearing data
+                    st.session_state.action_edit_mode = True
                     st.rerun()
             with col2:
                 st.write("*Ready for analysis below* ⬇️")
@@ -434,29 +451,61 @@ def render_action_form(sample_actions: Dict[str, Dict[str, str]]) -> Tuple[Optio
             # Reset the changed flag
             st.session_state.action_selection_changed = False
             
-            # Show form for new custom action
+            # Get existing data for pre-population if in edit mode
+            existing_data = None
+            if st.session_state.action_edit_mode and st.session_state.current_action_data:
+                existing_data = st.session_state.current_action_data
+            
+            # Show form for new custom action or editing existing
+            form_title = "Edit Custom Action:" if st.session_state.action_edit_mode else "Create Custom Action:"
+            st.write(f"**{form_title}**")
+            
             with st.form("custom_action_form", clear_on_submit=False):
                 
                 action_data = {
                     "title": st.text_input(
                         "Action/Experiment Title", 
+                        value=existing_data.get('title', '') if existing_data else '',
                         placeholder="e.g., Customer interviews with target segment"
                     ),
-                    "outcome": st.selectbox("Outcome", ["Successful", "Failed", "Inconclusive"]),
+                    "outcome": st.selectbox(
+                        "Outcome", 
+                        ["Successful", "Failed", "Inconclusive"],
+                        index=["Successful", "Failed", "Inconclusive"].index(existing_data.get('outcome', 'Successful')) if existing_data else 0
+                    ),
                     "description": st.text_area(
                         "What did you do?", 
+                        value=existing_data.get('description', '') if existing_data else '',
                         placeholder="Describe the action/experiment you completed",
                         height=100
                     ),
                     "results": st.text_area(
                         "Results & Key Learnings", 
+                        value=existing_data.get('results', '') if existing_data else '',
                         placeholder="What did you learn? Include metrics, feedback, insights...",
                         height=150
                     )
                 }
                 
-                form_submitted = st.form_submit_button("Save Custom Action", use_container_width=True)
+                # Form submission buttons
+                col1, col2 = st.columns(2)
                 
+                with col1:
+                    save_button_text = "Update Custom Action" if st.session_state.action_edit_mode else "Save Custom Action"
+                    form_submitted = st.form_submit_button(save_button_text, use_container_width=True)
+                
+                with col2:
+                    # Cancel button only in edit mode
+                    cancel_clicked = False
+                    if st.session_state.action_edit_mode:
+                        cancel_clicked = st.form_submit_button("Cancel Edit", use_container_width=True)
+                
+                # Handle cancel
+                if cancel_clicked:
+                    st.session_state.action_edit_mode = False
+                    st.rerun()
+                
+                # Handle save/update
                 if form_submitted:
                     if not all([action_data["title"], action_data["description"], action_data["results"]]):
                         st.error("Please fill in all fields for custom action")
@@ -465,7 +514,10 @@ def render_action_form(sample_actions: Dict[str, Dict[str, str]]) -> Tuple[Optio
                         # Store in session state
                         st.session_state.current_action_data = action_data
                         st.session_state.current_action_type = "custom"
-                        st.success("✅ Custom action saved! You can now analyze it below.")
+                        st.session_state.action_edit_mode = False  # Exit edit mode
+                        
+                        success_message = "✅ Custom action updated! You can now analyze it below." if existing_data else "✅ Custom action saved! You can now analyze it below."
+                        st.success(success_message)
                         st.rerun()
             
             return None, None
@@ -484,6 +536,8 @@ def clear_current_action():
         st.session_state.current_action_data = None
     if 'current_action_type' in st.session_state:
         st.session_state.current_action_type = None
+    if 'action_edit_mode' in st.session_state:
+        st.session_state.action_edit_mode = False
 
 
 def render_header():

@@ -1,9 +1,9 @@
 """
 SIGMA Agentic AI Actions Co-pilot - Complete Application
-Demonstrates: Business Design → Actions → AI Analysis → BMC Updates → Next Steps
+Demonstrates: Business Design → Actions → AI Analysis → BMC Updates → Strategic Next Steps
 
 Seedstars Senior AI Engineer Assignment - Option 2
-Enhanced with: Business Design Phase, Quality Validation, Modular Architecture
+Enhanced with: Strategic Next Steps Generation, Business Intelligence, Quality Validation
 """
 
 import streamlit as st
@@ -73,6 +73,12 @@ GOOGLE_API_KEY=your_actual_google_api_key_here
         st.session_state.auto_mode = False
     if 'business_design_manager' not in st.session_state:
         st.session_state.business_design_manager = BusinessDesignManager()
+    
+    # Initialize persistent next steps storage
+    if 'latest_next_steps' not in st.session_state:
+        st.session_state.latest_next_steps = None
+    if 'latest_next_steps_context' not in st.session_state:
+        st.session_state.latest_next_steps_context = None
 
     # Main Application Flow
     if not st.session_state.bmc.is_complete():
@@ -159,9 +165,13 @@ def render_actions_phase():
             )
             
             if analyze_clicked:
-                with st.spinner("AI analyzing your action with quality validation..."):
+                # Clear previous next steps when starting new analysis
+                st.session_state.latest_next_steps = None
+                st.session_state.latest_next_steps_context = None
+                
+                with st.spinner("AI analyzing your action and generating strategic next steps..."):
                     try:
-                        # Get AI recommendation with quality control
+                        # Get AI recommendation with quality control and enhanced next steps
                         recommendation, quality = st.session_state.ai.analyze_action_with_quality_control(
                             action_data, st.session_state.bmc
                         )
@@ -184,6 +194,15 @@ def render_actions_phase():
                         st.session_state.latest_quality = quality
                         st.session_state.latest_action_data = action_data
                         
+                        # IMPORTANT: Store next steps separately before any clearing happens
+                        if recommendation.get("next_steps"):
+                            st.session_state.latest_next_steps = recommendation["next_steps"]
+                            st.session_state.latest_next_steps_context = {
+                                "action_title": action_data.get('title', 'Unknown'),
+                                "action_outcome": action_data.get('outcome', 'Unknown'),
+                                "timestamp": time.time()
+                            }
+                        
                         # Clear the current action after successful analysis
                         clear_current_action()
                         
@@ -195,7 +214,7 @@ def render_actions_phase():
                         st.error(f"Error during analysis: {str(e)}")
                         st.error("Please check your API key and try again.")
         
-        # Display previous results if they exist
+        # Display previous results if they exist (without next steps)
         elif hasattr(st.session_state, 'latest_recommendation') and st.session_state.latest_recommendation:
             st.info("Previous analysis results:")
             display_analysis_results(
@@ -203,6 +222,9 @@ def render_actions_phase():
                 st.session_state.latest_quality, 
                 st.session_state.latest_action_data
             )
+    
+    # Display persistent next steps below the main interface
+    display_persistent_next_steps()
 
     # Footer with session metrics
     metrics = st.session_state.session_metrics.get_session_summary()
@@ -211,20 +233,20 @@ def render_actions_phase():
 
 
 def display_analysis_results(recommendation: dict, quality, action_data: dict):
-    """Display the AI analysis results with quality indicators"""
+    """Display the AI analysis results with enhanced next steps"""
     
     # Display AI Analysis with Quality Indicator
-    st.success("Analysis Complete!")
+    st.success("✅ Analysis Complete!")
     
     # Show quality indicator
     display_quality_indicator(quality)
     
-    with st.expander("AI Analysis", expanded=True):
+    with st.expander("🧠 AI Analysis", expanded=True):
         st.write(recommendation["analysis"])
     
     # Show proposed changes with enhanced visuals
     if recommendation["changes"]:
-        st.subheader("Proposed Business Model Updates")
+        st.subheader("🔄 Proposed Business Model Updates")
         
         # Display change preview
         display_change_preview(recommendation["changes"], st.session_state.bmc)
@@ -264,9 +286,12 @@ def display_analysis_results(recommendation: dict, quality, action_data: dict):
             if changes_applied > 0:
                 st.session_state.session_metrics.record_changes_applied(changes_applied, auto_applied=True)
                 st.success(f"Auto-applied {changes_applied} high-confidence changes!")
-                # Clear previous results after applying changes
+                
+                # FIXED: Only clear BMC changes, preserve next steps
                 if 'latest_recommendation' in st.session_state:
+                    # Next steps are already stored separately above
                     del st.session_state.latest_recommendation
+                    
                 time.sleep(1)
                 st.rerun()
         
@@ -283,9 +308,11 @@ def display_analysis_results(recommendation: dict, quality, action_data: dict):
                     if changes_applied > 0:
                         st.session_state.session_metrics.record_changes_applied(changes_applied, auto_applied=False)
                     st.success(f"Applied {changes_applied} changes to your business model!")
-                    # Clear previous results after applying changes
+                    
+                    # Clear BMC changes but preserve next steps
                     if 'latest_recommendation' in st.session_state:
                         del st.session_state.latest_recommendation
+                        
                     time.sleep(1)
                     st.rerun()
             
@@ -293,18 +320,43 @@ def display_analysis_results(recommendation: dict, quality, action_data: dict):
                 if st.button("Reject Changes", use_container_width=True, key="reject_changes"):
                     app_logger.info("User rejected all proposed changes")
                     st.info("Changes rejected. Business model remains unchanged.")
-                    # Clear previous results after rejecting
+                    
+                    # Clear BMC changes but preserve next steps
                     if 'latest_recommendation' in st.session_state:
                         del st.session_state.latest_recommendation
     
     else:
         st.info("No business model changes suggested based on this action.")
     
-    # Show next experiments
-    if recommendation.get("next_experiments"):
-        st.subheader("Suggested Next Experiments")
-        for i, experiment in enumerate(recommendation["next_experiments"], 1):
-            st.write(f"**{i}.** {experiment}")
+    # Show next steps inline if we have them and no auto-mode clearing happened
+    next_steps = recommendation.get("next_steps", [])
+    if next_steps and 'latest_recommendation' in st.session_state:
+        display_enhanced_next_steps(next_steps)
+
+
+def display_persistent_next_steps():
+    """Display next steps that persist even after BMC changes are applied"""
+    if (hasattr(st.session_state, 'latest_next_steps') and 
+        st.session_state.latest_next_steps and 
+        not hasattr(st.session_state, 'latest_recommendation')):
+        
+        # Show persistent next steps with context
+        st.markdown("---")
+        st.subheader("🎯 Your Strategic Action Plan")
+        
+        if st.session_state.latest_next_steps_context:
+            context = st.session_state.latest_next_steps_context
+            st.caption(f"Based on: **{context['action_title']}** ({context['action_outcome']})")
+        
+        display_enhanced_next_steps(st.session_state.latest_next_steps)
+        
+        # Option to clear next steps
+        col1, col2, col3 = st.columns([1, 1, 1])
+        with col2:
+            if st.button("Clear Action Plan", use_container_width=True):
+                st.session_state.latest_next_steps = None
+                st.session_state.latest_next_steps_context = None
+                st.rerun()
 
 
 def apply_change_to_bmc(change: dict) -> int:
