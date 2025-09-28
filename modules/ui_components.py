@@ -1,6 +1,5 @@
 """
-Reusable UI Components for SIGMA Agentic AI Actions Co-pilot
-Enhanced with Strategic Next Steps Display and Persistence
+Reusable UI Components for SIGMA Actions Co-pilot
 """
 
 import streamlit as st
@@ -13,7 +12,6 @@ def display_confidence_indicator(confidence: float, label: str = "Confidence"):
     col1, col2 = st.columns([3, 1])
     
     with col1:
-        # Color-coded progress bar
         if confidence >= 0.8:
             st.success(f"**{label}:** High ({confidence:.0%})")
         elif confidence >= 0.7:
@@ -42,7 +40,6 @@ def display_quality_indicator(quality):
     with col2:
         st.progress(quality.overall_score)
     
-    # Show quality details in expander
     if quality.issues:
         with st.expander("Quality Details", expanded=False):
             st.write("**Quality Breakdown:**")
@@ -60,17 +57,17 @@ def display_priority_badge(priority: str):
     """Display priority badge with appropriate color"""
     if priority.lower() == "high":
         st.markdown(
-            '<span style="background-color: #ff4b4b; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold;">🔥 HIGH</span>',
+            '<span style="background-color: #ff4b4b; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold;">HIGH</span>',
             unsafe_allow_html=True
         )
     elif priority.lower() == "medium":
         st.markdown(
-            '<span style="background-color: #ffa500; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold;">⚡ MEDIUM</span>',
+            '<span style="background-color: #ffa500; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold;">MEDIUM</span>',
             unsafe_allow_html=True
         )
     else:
         st.markdown(
-            '<span style="background-color: #00cc00; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold;">✅ LOW</span>',
+            '<span style="background-color: #00cc00; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold;">LOW</span>',
             unsafe_allow_html=True
         )
 
@@ -78,50 +75,44 @@ def display_priority_badge(priority: str):
 def display_difficulty_indicator(difficulty: str):
     """Display difficulty indicator"""
     if difficulty.lower() == "hard":
-        st.markdown("🔴 Hard")
+        st.markdown("Hard")
     elif difficulty.lower() == "medium":
-        st.markdown("🟡 Medium")
+        st.markdown("Medium")
     else:
-        st.markdown("🟢 Easy")
+        st.markdown("Easy")
 
 
 def display_enhanced_next_steps(next_steps: List[Dict[str, Any]]):
-    """Display enhanced next steps with rich formatting and implementation guidance"""
+    """Display enhanced next steps with rich formatting"""
     if not next_steps:
         st.info("No specific next steps provided.")
         return
     
-    # Handle both new structured format and legacy string format
     if isinstance(next_steps[0], str):
-        st.subheader("🎯 Suggested Next Experiments")
+        st.subheader("Suggested Next Experiments")
         for i, step in enumerate(next_steps, 1):
             st.write(f"**{i}.** {step}")
         return
     
-    st.subheader("🎯 Strategic Next Steps")
+    st.subheader("Strategic Next Steps")
     st.caption("AI-generated action plan based on your experiment outcome")
     
-    # Sort by priority (high first)
     priority_order = {"high": 1, "medium": 2, "low": 3}
     try:
         sorted_steps = sorted(next_steps, key=lambda x: priority_order.get(x.get('priority', 'medium').lower(), 2))
     except (KeyError, TypeError):
-        sorted_steps = next_steps  # Fallback if sorting fails
+        sorted_steps = next_steps
     
     for i, step in enumerate(sorted_steps, 1):
-        # Handle both dict and string formats
         if isinstance(step, str):
             st.write(f"**{i}.** {step}")
             continue
         
-        # Rich card layout for detailed next steps
         with st.container():
-            # Create visual separation
             st.markdown("""
             <div style="border-left: 4px solid #1f77b4; padding-left: 12px; margin: 16px 0;">
             """, unsafe_allow_html=True)
             
-            # Header with title and badges
             col1, col2, col3 = st.columns([3, 1, 1])
             
             with col1:
@@ -135,26 +126,24 @@ def display_enhanced_next_steps(next_steps: List[Dict[str, Any]]):
                 if step.get('difficulty'):
                     display_difficulty_indicator(step.get('difficulty', 'medium'))
             
-            # Description
             description = step.get('description', '')
             if description:
                 st.write(description)
             
-            # Key details in columns
             detail_col1, detail_col2, detail_col3 = st.columns(3)
             
             with detail_col1:
                 timeline = step.get('timeline', 'TBD')
-                st.markdown(f"**⏱️ Timeline:** {timeline}")
+                st.markdown(f"**Timeline:** {timeline}")
                 
                 stage = step.get('stage', 'validation')
-                st.markdown(f"**🎭 Stage:** {stage.title()}")
+                st.markdown(f"**Stage:** {stage.title()}")
             
             with detail_col2:
                 resources = step.get('resources_needed', [])
                 if resources:
-                    st.markdown("**💰 Resources:**")
-                    for resource in resources[:3]:  # Show max 3
+                    st.markdown("**Resources:**")
+                    for resource in resources[:3]:
                         st.markdown(f"• {resource}")
                     if len(resources) > 3:
                         st.markdown(f"• +{len(resources) - 3} more...")
@@ -162,21 +151,19 @@ def display_enhanced_next_steps(next_steps: List[Dict[str, Any]]):
             with detail_col3:
                 metrics = step.get('success_metrics', [])
                 if metrics:
-                    st.markdown("**📊 Success Metrics:**")
-                    for metric in metrics[:3]:  # Show max 3
+                    st.markdown("**Success Metrics:**")
+                    for metric in metrics[:3]:
                         st.markdown(f"• {metric}")
                     if len(metrics) > 3:
                         st.markdown(f"• +{len(metrics) - 3} more...")
             
-            # Implementation steps in expandable section
             implementation_steps = step.get('implementation_steps', [])
             if implementation_steps:
-                with st.expander(f"📋 Implementation Guide for Step {i}", expanded=False):
+                with st.expander(f"Implementation Guide for Step {i}", expanded=False):
                     st.markdown("**Step-by-step implementation:**")
                     for j, impl_step in enumerate(implementation_steps, 1):
                         st.markdown(f"**{j}.** {impl_step}")
                     
-                    # Additional resources if available
                     if len(resources) > 3:
                         st.markdown("**Additional Resources Needed:**")
                         for resource in resources[3:]:
@@ -218,7 +205,7 @@ def display_change_preview(changes: List[Dict[str, Any]], bmc: BusinessModelCanv
     if not changes:
         return
     
-    st.subheader("🔄 Preview Changes")
+    st.subheader("Preview Changes")
     st.caption("See how your Business Model will look after applying these changes")
     
     for i, change in enumerate(changes):
@@ -260,7 +247,6 @@ def render_business_canvas(bmc: BusinessModelCanvas):
     """Render the business model canvas in a clean layout"""
     st.subheader("Your Current Business Model")
     
-    # Show business stage and completion
     stage = bmc.get_business_stage()
     completion = bmc.get_completeness_score()
     
@@ -272,14 +258,12 @@ def render_business_canvas(bmc: BusinessModelCanvas):
     
     sections = bmc.get_all_sections()
     
-    # Display in 2x2 grid
     col1, col2 = st.columns(2)
     
     section_items = list(sections.items())
     
     for i in range(0, len(section_items), 2):
         with col1 if i % 4 == 0 else col2:
-            # First section
             section_key, items = section_items[i]
             display_name = bmc.get_section_display_name(section_key)
             
@@ -291,7 +275,6 @@ def render_business_canvas(bmc: BusinessModelCanvas):
                 st.markdown("*No items defined*")
             st.markdown("")
             
-            # Second section (if exists)
             if i + 1 < len(section_items):
                 section_key, items = section_items[i + 1]
                 display_name = bmc.get_section_display_name(section_key)
@@ -331,47 +314,41 @@ def render_sidebar_info(metrics, bmc: BusinessModelCanvas):
     with st.sidebar:
         st.subheader("Session Info")
         
-        # Session metrics
         st.write(f"Session ID: `{metrics['session_id']}`")
         st.write(f"Actions Analyzed: {metrics['actions_analyzed']}")
         st.write(f"Changes Applied: {metrics['changes_applied']}")
         st.write(f"Duration: {metrics['duration_seconds']:.0f}s")
         
-        # Business summary if complete
         if bmc.is_complete():
             st.markdown("---")
             st.subheader("Your Business")
             
-            # Business stage indicator
             stage = bmc.get_business_stage()
             risk_assessment = bmc.get_risk_assessment()
             
             if stage == "validation":
-                st.markdown("🔬 **Stage:** Discovery/Validation")
+                st.markdown("**Stage:** Discovery/Validation")
             elif stage == "growth":
-                st.markdown("📈 **Stage:** Growth")
+                st.markdown("**Stage:** Growth")
             else:
-                st.markdown("🚀 **Stage:** Scale")
+                st.markdown("**Stage:** Scale")
             
             st.caption(bmc.get_business_summary())
             
-            # Risk indicator
             if "high" in risk_assessment.lower():
-                st.warning(f"⚠️ {risk_assessment}")
+                st.warning(f"{risk_assessment}")
             else:
-                st.info(f"✅ {risk_assessment}")
+                st.info(f"{risk_assessment}")
             
-            # Completion score
             completion = bmc.get_completeness_score()
             st.progress(completion)
             st.caption(f"Business Design: {completion:.0%} complete")
 
 
 def render_action_form(sample_actions: Dict[str, Dict[str, str]]) -> Tuple[Optional[Dict[str, str]], Optional[str]]:
-    """Render the action input form with persistent state management and proper edit flow"""
+    """Render the action input form with persistent state management"""
     st.subheader("Log Completed Action")
     
-    # Initialize session state for action management
     if 'current_action_data' not in st.session_state:
         st.session_state.current_action_data = None
     if 'current_action_type' not in st.session_state:
@@ -381,14 +358,12 @@ def render_action_form(sample_actions: Dict[str, Dict[str, str]]) -> Tuple[Optio
     if 'action_edit_mode' not in st.session_state:
         st.session_state.action_edit_mode = False
     
-    # Sample action selector
     use_sample = st.selectbox(
         "Choose sample action or create custom:",
         ["Custom Action"] + list(sample_actions.keys()),
         key="action_selector"
     )
     
-    # Check if selection changed - clear stored data if so
     if 'previous_selection' not in st.session_state:
         st.session_state.previous_selection = use_sample
     elif st.session_state.previous_selection != use_sample:
@@ -396,10 +371,9 @@ def render_action_form(sample_actions: Dict[str, Dict[str, str]]) -> Tuple[Optio
         st.session_state.current_action_type = None
         st.session_state.previous_selection = use_sample
         st.session_state.action_selection_changed = True
-        st.session_state.action_edit_mode = False  # Reset edit mode on selection change
+        st.session_state.action_edit_mode = False
     
     if use_sample != "Custom Action":
-        # Use selected sample action
         action_data = sample_actions[use_sample]
         
         st.info(f"**Sample Action Selected:** {action_data['title']}")
@@ -410,53 +384,44 @@ def render_action_form(sample_actions: Dict[str, Dict[str, str]]) -> Tuple[Optio
             st.write("**Results:**")
             st.code(action_data['results'])
         
-        # Store in session state
         st.session_state.current_action_data = action_data
         st.session_state.current_action_type = "sample"
-        st.session_state.action_edit_mode = False  # Reset edit mode for sample actions
+        st.session_state.action_edit_mode = False
         
         return action_data, "sample"
     
     else:
-        # Custom action form
         st.write("**Create Custom Action:**")
         
-        # Check if we have stored custom action data AND not in edit mode
         if (st.session_state.current_action_data is not None and 
             st.session_state.current_action_type == "custom" and 
             not st.session_state.action_selection_changed and
             not st.session_state.action_edit_mode):
             
-            # Display stored custom action
             stored_data = st.session_state.current_action_data
-            st.success("✅ **Custom Action Ready for Analysis:**")
+            st.success("Custom Action Ready for Analysis:")
             st.write(f"**Title:** {stored_data['title']}")
             st.write(f"**Outcome:** {stored_data['outcome']}")
             st.write(f"**Description:** {stored_data['description']}")
             st.write(f"**Results:** {stored_data['results'][:100]}...")
             
-            # Option to edit or use current
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("Edit Custom Action", use_container_width=True):
-                    # Enable edit mode instead of clearing data
                     st.session_state.action_edit_mode = True
                     st.rerun()
             with col2:
-                st.write("*Ready for analysis below* ⬇️")
+                st.write("*Ready for analysis below*")
             
             return stored_data, "custom"
         
         else:
-            # Reset the changed flag
             st.session_state.action_selection_changed = False
             
-            # Get existing data for pre-population if in edit mode
             existing_data = None
             if st.session_state.action_edit_mode and st.session_state.current_action_data:
                 existing_data = st.session_state.current_action_data
             
-            # Show form for new custom action or editing existing
             form_title = "Edit Custom Action:" if st.session_state.action_edit_mode else "Create Custom Action:"
             st.write(f"**{form_title}**")
             
@@ -487,7 +452,6 @@ def render_action_form(sample_actions: Dict[str, Dict[str, str]]) -> Tuple[Optio
                     )
                 }
                 
-                # Form submission buttons
                 col1, col2 = st.columns(2)
                 
                 with col1:
@@ -495,28 +459,24 @@ def render_action_form(sample_actions: Dict[str, Dict[str, str]]) -> Tuple[Optio
                     form_submitted = st.form_submit_button(save_button_text, use_container_width=True)
                 
                 with col2:
-                    # Cancel button only in edit mode
                     cancel_clicked = False
                     if st.session_state.action_edit_mode:
                         cancel_clicked = st.form_submit_button("Cancel Edit", use_container_width=True)
                 
-                # Handle cancel
                 if cancel_clicked:
                     st.session_state.action_edit_mode = False
                     st.rerun()
                 
-                # Handle save/update
                 if form_submitted:
                     if not all([action_data["title"], action_data["description"], action_data["results"]]):
                         st.error("Please fill in all fields for custom action")
                         return None, None
                     else:
-                        # Store in session state
                         st.session_state.current_action_data = action_data
                         st.session_state.current_action_type = "custom"
-                        st.session_state.action_edit_mode = False  # Exit edit mode
+                        st.session_state.action_edit_mode = False
                         
-                        success_message = "✅ Custom action updated! You can now analyze it below." if existing_data else "✅ Custom action saved! You can now analyze it below."
+                        success_message = "Custom action updated! You can now analyze it below." if existing_data else "Custom action saved! You can now analyze it below."
                         st.success(success_message)
                         st.rerun()
             

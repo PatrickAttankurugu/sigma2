@@ -41,8 +41,9 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Local data/output (project-specific)
+# Local data/output
 business_model.csv
 change_history.json
 data/
 data\
+logs/

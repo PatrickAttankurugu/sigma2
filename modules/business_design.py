@@ -1,6 +1,5 @@
 """
 Business Design Phase Handler for SIGMA
-Enhanced with Stage-Aware Sample Actions
 """
 
 import streamlit as st
@@ -23,43 +22,36 @@ class BusinessDesignManager(LoggingMixin):
     def render_business_design_form(self, bmc: BusinessModelCanvas) -> bool:
         """Render the business design form and return True if completed"""
         
-        st.title("🚀 SIGMA Business Design")
+        st.title("SIGMA Business Design")
         st.markdown("""
         Welcome to SIGMA! Let's start by defining the core elements of your business.
         This will help our AI provide personalized recommendations for your experiments and actions.
         """)
         
-        # Progress indicator
         self._render_progress_indicator()
         
-        # Form container
         with st.form("business_design_form", clear_on_submit=False):
             st.subheader("Define Your Business")
             st.markdown("Fill in each section with 1-5 clear, specific items:")
             
             form_data = {}
             
-            # Customer Segments
             form_data['customer_segments'] = self._render_section_input(
                 'customer_segments', bmc
             )
             
-            # Value Propositions
             form_data['value_propositions'] = self._render_section_input(
                 'value_propositions', bmc
             )
             
-            # Business Models
             form_data['business_models'] = self._render_section_input(
                 'business_models', bmc
             )
             
-            # Market Opportunities
             form_data['market_opportunities'] = self._render_section_input(
                 'market_opportunities', bmc
             )
             
-            # Submit button
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
                 submitted = st.form_submit_button(
@@ -81,10 +73,8 @@ class BusinessDesignManager(LoggingMixin):
         st.markdown(f"**{display_name}**")
         st.caption(description)
         
-        # Get existing values if any
         existing_values = bmc.get_section(section_name)
         
-        # Create text areas for up to 5 items
         items = []
         for i in range(5):
             default_value = existing_values[i] if i < len(existing_values) else ""
@@ -144,20 +134,17 @@ class BusinessDesignManager(LoggingMixin):
     def _process_form_submission(self, form_data: Dict[str, List[str]], bmc: BusinessModelCanvas) -> bool:
         """Process form submission and validate data"""
         
-        # Validate all sections
         errors = []
         for section_name, items in form_data.items():
             is_valid, error_msg = bmc.validate_section_input(section_name, items)
             if not is_valid:
                 errors.append(error_msg)
         
-        # Show errors if any
         if errors:
             for error in errors:
                 st.error(error)
             return False
         
-        # All valid - save to BMC
         bmc.set_initial_business_design(
             customer_segments=form_data['customer_segments'],
             value_propositions=form_data['value_propositions'],
@@ -165,13 +152,12 @@ class BusinessDesignManager(LoggingMixin):
             market_opportunities=form_data['market_opportunities']
         )
         
-        # Log completion
         self.log_user_action("business_design_completed", {
             "total_items": sum(len(items) for items in form_data.values()),
             "sections_completed": len([k for k, v in form_data.items() if v])
         })
         
-        st.success("🎉 Business design completed! You can now start running experiments and actions.")
+        st.success("Business design completed! You can now start running experiments and actions.")
         st.balloons()
         
         return True
@@ -204,7 +190,6 @@ class BusinessDesignManager(LoggingMixin):
                 for i, item in enumerate(items, 1):
                     st.write(f"{i}. {item}")
         
-        # Business summary
         st.sidebar.markdown("---")
         st.sidebar.caption(f"**Summary:** {bmc.get_business_summary()}")
     
@@ -213,17 +198,15 @@ class BusinessDesignManager(LoggingMixin):
         if not bmc.is_complete():
             return {}
         
-        # Get business context
         primary_customer = bmc.customer_segments[0] if bmc.customer_segments else "target customers"
         primary_value_prop = bmc.value_propositions[0] if bmc.value_propositions else "main value proposition"
         business_stage = bmc.get_business_stage()
         
-        # Generate stage-appropriate sample actions
         if business_stage == "validation":
             return self._get_validation_stage_samples(primary_customer, primary_value_prop)
         elif business_stage == "growth":
             return self._get_growth_stage_samples(primary_customer, primary_value_prop)
-        else:  # scale
+        else:
             return self._get_scale_stage_samples(primary_customer, primary_value_prop)
     
     def _get_validation_stage_samples(self, primary_customer: str, primary_value_prop: str) -> Dict[str, Dict[str, str]]:

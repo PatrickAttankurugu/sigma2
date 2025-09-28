@@ -1,6 +1,5 @@
 """
-AI Engine with Quality Validation for SIGMA Agentic Actions Co-pilot
-Enhanced with Strategic Next Steps Generation
+AI Engine with Quality Validation for SIGMA Actions Co-pilot
 """
 
 import json
@@ -17,12 +16,12 @@ from .utils import LoggingMixin
 @dataclass
 class ResponseQuality:
     """Quality metrics for AI responses"""
-    overall_score: float  # 0.0 to 1.0
-    specificity_score: float  # How specific vs generic
-    evidence_score: float  # How well supported by action data
-    actionability_score: float  # How actionable the recommendations are
-    consistency_score: float  # Internal consistency
-    issues: List[str]  # List of quality issues found
+    overall_score: float
+    specificity_score: float
+    evidence_score: float
+    actionability_score: float
+    consistency_score: float
+    issues: List[str]
 
 
 class AIQualityValidator:
@@ -34,16 +33,13 @@ class AIQualityValidator:
     def validate_response(self, response: Dict[str, Any], action_data: Dict[str, Any]) -> ResponseQuality:
         """Comprehensive response quality validation"""
         
-        # Score different aspects
         specificity = self._score_specificity(response)
         evidence = self._score_evidence_alignment(response, action_data)
         actionability = self._score_actionability(response)
         consistency = self._score_consistency(response)
         
-        # Identify issues
         issues = self._identify_issues(response, action_data)
         
-        # Calculate overall score
         overall = (specificity + evidence + actionability + consistency) / 4
         
         quality = ResponseQuality(
@@ -55,7 +51,6 @@ class AIQualityValidator:
             issues=issues
         )
         
-        # Track for improvement
         self.quality_history.append({
             'timestamp': datetime.now(),
             'quality': quality,
@@ -69,7 +64,6 @@ class AIQualityValidator:
         """Score how specific vs generic the response is"""
         score = 1.0
         
-        # Check for generic phrases
         generic_phrases = [
             'improve', 'enhance', 'optimize', 'better', 'more effective',
             'innovative', 'cutting-edge', 'world-class', 'best-in-class',
@@ -79,14 +73,11 @@ class AIQualityValidator:
         text_content = json.dumps(response).lower()
         generic_count = sum(1 for phrase in generic_phrases if phrase in text_content)
         
-        # Penalize generic language
         score -= min(generic_count * 0.1, 0.4)
         
-        # Reward specific metrics, numbers, names
         if any(char.isdigit() for char in text_content):
             score += 0.2
         
-        # Reward detailed next steps
         next_steps = response.get('next_steps', [])
         if next_steps and len(next_steps) > 0:
             detailed_steps = sum(1 for step in next_steps if len(str(step)) > 100)
@@ -96,20 +87,17 @@ class AIQualityValidator:
     
     def _score_evidence_alignment(self, response: Dict[str, Any], action_data: Dict[str, Any]) -> float:
         """Score how well the response aligns with action evidence"""
-        score = 0.7  # Base score
+        score = 0.7
         
         action_text = (action_data.get('results', '') + ' ' + action_data.get('description', '')).lower()
         response_text = json.dumps(response).lower()
         
-        # Check outcome alignment
         outcome = action_data.get('outcome', '').lower()
         if outcome == 'successful':
-            # Should suggest growth/scaling changes
             growth_terms = ['scale', 'expand', 'grow', 'increase', 'more']
             if any(term in response_text for term in growth_terms):
                 score += 0.1
         elif outcome == 'failed':
-            # Should suggest pivot/fix changes
             pivot_terms = ['pivot', 'change', 'different', 'alternative', 'reconsider']
             if any(term in response_text for term in pivot_terms):
                 score += 0.1
@@ -118,28 +106,23 @@ class AIQualityValidator:
     
     def _score_actionability(self, response: Dict[str, Any]) -> float:
         """Score how actionable the recommendations are"""
-        score = 0.5  # Base score
+        score = 0.5
         
-        # Check if changes are specific and implementable
         changes = response.get('changes', [])
         if changes:
             for change in changes:
                 new_value = change.get('new', '')
                 reasoning = change.get('reason', '')
                 
-                # Reward specific, measurable changes
                 if len(new_value) > 20:
                     score += 0.05
                 
-                # Reward clear reasoning
                 if len(reasoning) > 30:
                     score += 0.05
         
-        # Check next steps quality
         next_steps = response.get('next_steps', [])
         for step in next_steps:
             if isinstance(step, dict):
-                # Reward structured next steps with implementation details
                 if step.get('timeline') and step.get('resources_needed'):
                     score += 0.1
                 if step.get('success_metrics'):
@@ -157,14 +140,12 @@ class AIQualityValidator:
         if len(changes) < 2:
             return score
         
-        # Basic consistency check - ensure changes make logical sense together
         return max(0.0, score)
     
     def _identify_issues(self, response: Dict[str, Any], action_data: Dict[str, Any]) -> List[str]:
         """Identify specific quality issues"""
         issues = []
         
-        # Check for missing fields
         if not response.get('analysis'):
             issues.append("Missing analysis section")
         if not response.get('changes'):
@@ -172,18 +153,15 @@ class AIQualityValidator:
         if not response.get('next_steps'):
             issues.append("No next steps suggested")
         
-        # Check for very low confidence
         changes = response.get('changes', [])
         low_confidence_count = sum(1 for c in changes if c.get('confidence', 0) < 0.6)
         if low_confidence_count > len(changes) * 0.7:
             issues.append("Too many low-confidence recommendations")
         
-        # Check for generic responses
         analysis = response.get('analysis', '')
         if len(analysis) < 50:
             issues.append("Analysis too brief")
         
-        # Check next steps quality
         next_steps = response.get('next_steps', [])
         if next_steps:
             generic_steps = sum(1 for step in next_steps if len(str(step)) < 30)
@@ -252,7 +230,7 @@ class QualityEnhancedAI(LoggingMixin):
                 api_key=api_key,
                 model="gemini-2.0-flash",
                 temperature=0.3,
-                max_output_tokens=2000,  # Increased for detailed next steps
+                max_output_tokens=2000,
                 timeout=30
             )
             self.SystemMessage = SystemMessage
@@ -260,7 +238,6 @@ class QualityEnhancedAI(LoggingMixin):
             self.quality_validator = AIQualityValidator()
             self.max_retries = 2
             
-            # Log successful AI initialization
             self.log_ai_performance("ai_initialization", 0, True, {
                 "model": "gemini-2.0-flash",
                 "quality_validation": True,
@@ -277,7 +254,6 @@ class QualityEnhancedAI(LoggingMixin):
         start_time = time.time()
         analysis_id = str(uuid.uuid4())[:8]
         
-        # Log analysis start
         self.log_ai_performance("quality_analysis_started", 0, True, {
             "analysis_id": analysis_id,
             "action_title": action_data.get('title', 'Unknown'),
@@ -291,16 +267,13 @@ class QualityEnhancedAI(LoggingMixin):
         
         for attempt in range(self.max_retries + 1):
             try:
-                # Get AI response
                 if attempt == 0:
                     response = self._get_initial_response(action_data, bmc, analysis_id)
                 else:
                     response = self._retry_with_improvement(action_data, bmc, last_response, quality, analysis_id)
                 
-                # Validate quality
                 quality = self.quality_validator.validate_response(response, action_data)
                 
-                # Log quality metrics for this attempt
                 self.log_ai_performance(f"quality_check_attempt_{attempt + 1}", 0, True, {
                     "analysis_id": analysis_id,
                     "overall_score": quality.overall_score,
@@ -308,14 +281,12 @@ class QualityEnhancedAI(LoggingMixin):
                     "attempt": attempt + 1
                 })
                 
-                # Check if good enough or max retries reached
                 if not self.quality_validator.should_retry(quality) or attempt == self.max_retries:
                     break
                 
                 last_response = response
                 
             except Exception as e:
-                # Log retry failure
                 self.log_ai_performance(f"quality_retry_failed_attempt_{attempt + 1}", 0, False, {
                     "analysis_id": analysis_id,
                     "error": str(e),
@@ -323,7 +294,6 @@ class QualityEnhancedAI(LoggingMixin):
                 })
                 
                 if attempt == self.max_retries:
-                    # Return fallback response on final failure
                     response = self._create_fallback_response(action_data, bmc)
                     quality = ResponseQuality(
                         overall_score=0.3,
@@ -335,7 +305,6 @@ class QualityEnhancedAI(LoggingMixin):
                     )
                     break
         
-        # Log final analysis completion
         total_duration = (time.time() - start_time) * 1000
         self.log_ai_performance("quality_analysis_completed", int(total_duration), True, {
             "analysis_id": analysis_id,
@@ -347,14 +316,12 @@ class QualityEnhancedAI(LoggingMixin):
         return response, quality
 
     def _get_initial_response(self, action_data: Dict[str, Any], bmc: BusinessModelCanvas, analysis_id: str) -> Dict[str, Any]:
-        """Get initial AI response with enhanced prompting for strategic next steps"""
+        """Get initial AI response with enhanced prompting"""
         
-        # Get business context
         business_stage = bmc.get_business_stage()
         business_context = bmc.get_enhanced_business_context()
         risk_assessment = bmc.get_risk_assessment()
         
-        # Enhanced system prompt with outcome-specific next step generation
         system_prompt = f"""You are SIGMA's AI co-pilot helping entrepreneurs validate business assumptions through experiments.
 
 Your role is to:
@@ -427,7 +394,6 @@ Rules:
 - Make next steps feel like strategic guidance from an experienced advisor
 - Ensure recommendations build logically on the current action outcome"""
 
-        # Create comprehensive business context
         user_prompt = f"""COMPLETED ACTION/EXPERIMENT:
 Title: {action_data['title']}
 Outcome: {action_data['outcome']} 
@@ -446,7 +412,6 @@ Focus on actionable insights that move the business forward based on the {action
 
 Return only the JSON response."""
 
-        # Call Gemini API
         api_start = time.time()
         messages = [
             self.SystemMessage(content=system_prompt),
@@ -456,7 +421,6 @@ Return only the JSON response."""
         response = self.llm.invoke(messages)
         api_duration = (time.time() - api_start) * 1000
         
-        # Log API call performance
         self.log_ai_performance("quality_api_call", int(api_duration), True, {
             "analysis_id": analysis_id,
             "response_length": len(response.content),
@@ -472,7 +436,6 @@ Return only the JSON response."""
         
         improvement_prompt = self.quality_validator.get_improvement_prompt(quality, last_response)
         
-        # Use improvement prompt as system message
         messages = [
             self.SystemMessage(content=improvement_prompt),
             self.HumanMessage(content=f"""
@@ -502,19 +465,17 @@ Return only the JSON response."""
                 "analysis_id": analysis_id,
                 "error": str(e)
             })
-            return last_response  # Fall back to previous response
+            return last_response
 
     def _parse_response(self, content: str) -> Dict[str, Any]:
         """Parse AI response content to JSON"""
         content = content.strip()
         
-        # Extract JSON from response
         if "```json" in content:
             json_part = content.split("```json")[1].split("```")[0].strip()
         elif "```" in content:
             json_part = content.split("```")[1].split("```")[0].strip()
         else:
-            # Try to find JSON object in response
             start = content.find("{")
             end = content.rfind("}") + 1
             if start >= 0 and end > start:
@@ -522,10 +483,8 @@ Return only the JSON response."""
             else:
                 json_part = content
         
-        # Parse JSON response
         result = json.loads(json_part)
         
-        # Validate required fields
         if 'analysis' not in result:
             result['analysis'] = "Analysis completed successfully"
         if 'changes' not in result:

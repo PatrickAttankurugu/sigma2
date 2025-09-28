@@ -1,5 +1,5 @@
 """
-Utilities and Logging for SIGMA Agentic AI Actions Co-pilot
+Utilities and Logging for SIGMA Actions Co-pilot
 """
 
 import os
@@ -12,10 +12,8 @@ from typing import Dict, Any
 def setup_logging():
     """Configure structured logging for the application"""
     
-    # Create logs directory if it doesn't exist
     os.makedirs("logs", exist_ok=True)
     
-    # Configure root logger
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -25,7 +23,6 @@ def setup_logging():
         ]
     )
     
-    # Create specialized loggers
     app_logger = logging.getLogger("sigma.app")
     ai_logger = logging.getLogger("sigma.ai")
     bmc_logger = logging.getLogger("sigma.bmc")
@@ -97,7 +94,6 @@ class SessionMetrics(LoggingMixin):
         self.quality_retries = 0
         self.business_design_completed = False
         
-        # Log session start
         self.log_session_metrics(self.session_id, {
             "event": "session_started",
             "start_time": self.start_time.isoformat()

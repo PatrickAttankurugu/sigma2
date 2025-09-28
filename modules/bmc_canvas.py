@@ -1,6 +1,5 @@
 """
 Business Model Canvas for SIGMA - Business Design Phase
-Enhanced with Business Intelligence and Stage Detection
 """
 
 from typing import List, Dict, Any
@@ -8,19 +7,16 @@ from .utils import LoggingMixin
 
 
 class BusinessModelCanvas(LoggingMixin):
-    """Simplified BMC with 4 sections from Business Design Phase + Business Intelligence"""
+    """Simplified BMC with 4 sections from Business Design Phase"""
     
     def __init__(self):
-        # Initialize empty sections - entrepreneurs will fill these
         self.customer_segments = []
         self.value_propositions = []
         self.business_models = []
         self.market_opportunities = []
         
-        # Track if business design is complete
         self._is_complete = False
         
-        # Log BMC initialization
         self.log_user_action("bmc_initialized", {
             "sections": 4,
             "initial_state": "empty"
@@ -39,7 +35,6 @@ class BusinessModelCanvas(LoggingMixin):
         old_items = getattr(self, section_name, [])
         setattr(self, section_name, items)
         
-        # Log the section update
         self.log_user_action("bmc_section_updated", {
             "section": section_name,
             "old_count": len(old_items),
@@ -47,7 +42,6 @@ class BusinessModelCanvas(LoggingMixin):
             "items_added": len(items) - len(old_items)
         })
         
-        # Update completion status
         self._update_completion_status()
 
     def set_initial_business_design(self, customer_segments: List[str], value_propositions: List[str], 
@@ -60,7 +54,6 @@ class BusinessModelCanvas(LoggingMixin):
         
         self._is_complete = True
         
-        # Log business design completion
         self.log_user_action("business_design_set", {
             "total_items": sum([
                 len(customer_segments), len(value_propositions), 
@@ -113,7 +106,6 @@ class BusinessModelCanvas(LoggingMixin):
         if not self.is_complete():
             return "validation"
         
-        # Analyze content to determine stage
         all_content = " ".join([
             " ".join(self.customer_segments),
             " ".join(self.value_propositions),
@@ -121,21 +113,18 @@ class BusinessModelCanvas(LoggingMixin):
             " ".join(self.market_opportunities)
         ]).lower()
         
-        # Growth stage indicators
         growth_indicators = [
             'scale', 'scaling', 'growth', 'expand', 'expansion', 'market share',
             'revenue', 'profit', 'optimization', 'retention', 'churn',
             'channels', 'distribution', 'partnerships'
         ]
         
-        # Scale stage indicators  
         scale_indicators = [
             'international', 'global', 'enterprise', 'automation', 'efficiency',
             'competitive advantage', 'market leader', 'dominance', 'margins',
             'operational', 'systems', 'processes'
         ]
         
-        # Validation stage indicators (default)
         validation_indicators = [
             'test', 'validate', 'prototype', 'mvp', 'pilot', 'experiment',
             'interview', 'survey', 'feedback', 'assumption', 'hypothesis'
@@ -145,7 +134,6 @@ class BusinessModelCanvas(LoggingMixin):
         scale_score = sum(1 for indicator in scale_indicators if indicator in all_content)
         validation_score = sum(1 for indicator in validation_indicators if indicator in all_content)
         
-        # Determine stage based on content analysis and completeness
         if scale_score >= 2 and self.get_completeness_score() == 1.0:
             return "scale"
         elif growth_score >= 3 or (growth_score >= 2 and self.get_completeness_score() >= 0.75):
@@ -160,21 +148,17 @@ class BusinessModelCanvas(LoggingMixin):
         
         risks = []
         
-        # Analyze customer segments
         if len(self.customer_segments) == 1:
             risks.append("Single customer segment dependency")
         
-        # Analyze value propositions
         vp_content = " ".join(self.value_propositions).lower()
         if not any(word in vp_content for word in ['unique', 'different', 'advantage', 'better']):
             risks.append("Value proposition lacks differentiation")
         
-        # Analyze business models
         bm_content = " ".join(self.business_models).lower()
         if len(self.business_models) == 1 and not any(word in bm_content for word in ['recurring', 'subscription', 'repeat']):
             risks.append("Single revenue stream without recurring income")
         
-        # Analyze market opportunities
         mo_content = " ".join(self.market_opportunities).lower()
         if not any(word in mo_content for word in ['large', 'growing', 'billion', 'million', 'market size']):
             risks.append("Market size unclear or potentially limited")
@@ -227,7 +211,7 @@ Risk mitigation should address: {risk_assessment}
             return "customer validation, assumption testing, MVP development, and market fit validation"
         elif stage == "growth":
             return "scaling customer acquisition, optimizing conversion rates, expanding market reach, and improving retention"
-        else:  # scale
+        else:
             return "operational efficiency, market expansion, competitive differentiation, and sustainable growth systems"
 
     def _update_completion_status(self):
