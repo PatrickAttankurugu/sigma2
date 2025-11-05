@@ -9,11 +9,16 @@ from datetime import datetime
 from typing import Dict, Any
 
 
+def get_logger(name: str):
+    """Get a logger for the given module name"""
+    return logging.getLogger(name)
+
+
 def setup_logging():
     """Configure structured logging for the application"""
-    
+
     os.makedirs("logs", exist_ok=True)
-    
+
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -22,13 +27,13 @@ def setup_logging():
             logging.StreamHandler()
         ]
     )
-    
+
     app_logger = logging.getLogger("sigma.app")
     ai_logger = logging.getLogger("sigma.ai")
     bmc_logger = logging.getLogger("sigma.bmc")
     metrics_logger = logging.getLogger("sigma.metrics")
     quality_logger = logging.getLogger("sigma.quality")
-    
+
     return app_logger, ai_logger, bmc_logger, metrics_logger, quality_logger
 
 

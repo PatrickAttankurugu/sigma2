@@ -9,7 +9,7 @@ This module provides specialized tools for each agent in the multi-agent system:
 """
 
 from typing import Dict, List, Any, Optional
-from langchain.tools import Tool
+from langchain_core.tools import StructuredTool
 from langchain_community.utilities import GoogleSearchAPIWrapper
 import json
 import os
@@ -423,68 +423,68 @@ class AgentTools:
 
     # ========== Tool Creation Methods ==========
 
-    def get_strategy_tools(self) -> List[Tool]:
+    def get_strategy_tools(self) -> List[StructuredTool]:
         """Get tools for the Strategy Agent"""
         return [
-            Tool(
-                name="analyze_bmc_coherence",
+            StructuredTool.from_function(
                 func=self.analyze_bmc_coherence,
+                name="analyze_bmc_coherence",
                 description="Analyze Business Model Canvas for internal coherence and alignment. Use this to understand how well different BMC components work together."
             ),
-            Tool(
-                name="detect_business_stage",
+            StructuredTool.from_function(
                 func=self.detect_business_stage,
+                name="detect_business_stage",
                 description="Detect current business stage (validation/growth/scale). Use this to understand what phase the business is in and what strategies are appropriate."
             )
         ]
 
-    def get_market_research_tools(self) -> List[Tool]:
+    def get_market_research_tools(self) -> List[StructuredTool]:
         """Get tools for the Market Research Agent"""
         tools = [
-            Tool(
-                name="analyze_customer_segments",
+            StructuredTool.from_function(
                 func=self.analyze_customer_segments,
+                name="analyze_customer_segments",
                 description="Analyze defined customer segments for completeness and quality. Use this to evaluate how well customer segments are defined."
             )
         ]
 
         if self.search_wrapper:
             tools.append(
-                Tool(
-                    name="search_market_trends",
+                StructuredTool.from_function(
                     func=self.search_market_trends,
+                    name="search_market_trends",
                     description="Search for market trends and insights. Input should be a search query about market trends, competitors, or industry insights."
                 )
             )
 
         return tools
 
-    def get_product_tools(self) -> List[Tool]:
+    def get_product_tools(self) -> List[StructuredTool]:
         """Get tools for the Product Agent"""
         return [
-            Tool(
-                name="analyze_value_propositions",
+            StructuredTool.from_function(
                 func=self.analyze_value_propositions,
+                name="analyze_value_propositions",
                 description="Analyze value propositions for uniqueness, clarity, and customer alignment. Use this to evaluate product-market fit."
             ),
-            Tool(
-                name="assess_competitive_positioning",
+            StructuredTool.from_function(
                 func=self.assess_competitive_positioning,
+                name="assess_competitive_positioning",
                 description="Assess competitive positioning based on value propositions and market opportunities. Use this to understand differentiation."
             )
         ]
 
-    def get_execution_tools(self) -> List[Tool]:
+    def get_execution_tools(self) -> List[StructuredTool]:
         """Get tools for the Execution Agent"""
         return [
-            Tool(
-                name="analyze_action_impact",
+            StructuredTool.from_function(
                 func=self.analyze_action_impact,
+                name="analyze_action_impact",
                 description="Analyze the impact of a completed action/experiment. Input should be JSON string with keys: title, description, outcome, metrics."
             ),
-            Tool(
-                name="generate_next_steps",
+            StructuredTool.from_function(
                 func=self.generate_next_steps,
+                name="generate_next_steps",
                 description="Generate actionable next steps based on analysis. Input should include action results and business context."
             )
         ]

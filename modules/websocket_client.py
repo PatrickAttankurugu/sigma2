@@ -24,8 +24,9 @@ class WebSocketClient:
     def __init__(self, uri: str = "ws://localhost:8765"):
         self.uri = uri
         self.websocket: Optional[WebSocketClientProtocol] = None
-        self.message_queue: Queue = Queue()
-        self.stream_queue: Queue = Queue()
+        self.outgoing_queue: Queue = Queue()  # For messages to send
+        self.incoming_queue: Queue = Queue()  # For responses received
+        self.stream_queue: Queue = Queue()    # For streaming updates
         self.connected = False
         self.running = False
         self.session_id: Optional[str] = None
@@ -80,8 +81,8 @@ class WebSocketClient:
                 while self.running:
                     try:
                         # Check for outgoing messages
-                        if not self.message_queue.empty():
-                            message = self.message_queue.get()
+                        if not self.outgoing_queue.empty():
+                            message = self.outgoing_queue.get()
                             await websocket.send(json.dumps(message))
 
                         # Receive messages with timeout
@@ -117,8 +118,8 @@ class WebSocketClient:
         if category == "agent" and msg_type == "stream":
             self.stream_queue.put(payload)
         else:
-            # All other messages go to message queue for processing
-            self.message_queue.put(data)
+            # All other messages go to incoming queue for processing
+            self.incoming_queue.put(data)
 
     def send_message(self, message_type: str, payload: Dict[str, Any]):
         """Send a message to the server"""
@@ -129,7 +130,7 @@ class WebSocketClient:
             "type": message_type,
             "payload": payload
         }
-        self.message_queue.put(message)
+        self.outgoing_queue.put(message)
 
     def init_session(self, session_id: str, bmc_data: Optional[Dict[str, List[str]]] = None):
         """Initialize a session"""
@@ -207,8 +208,8 @@ class WebSocketClient:
         start_time = time.time()
 
         while time.time() - start_time < timeout:
-            if not self.message_queue.empty():
-                message = self.message_queue.get()
+            if not self.incoming_queue.empty():
+                message = self.incoming_queue.get()
                 if message.get("category") == category and message.get("type") == msg_type:
                     return message
 

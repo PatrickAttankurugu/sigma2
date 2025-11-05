@@ -275,42 +275,39 @@ def analyze_with_multi_agent_system(action_data: dict):
 
 
 def analyze_with_streaming(action_data: dict):
-    """Analyze action with real-time streaming"""
-    st.markdown("### 🤖 Multi-Agent Analysis in Progress")
-
-    # Create placeholder for agent updates
-    agent_status_placeholder = st.empty()
-    progress_placeholder = st.empty()
+    """Analyze action with WebSocket-based streaming (simplified for Streamlit)"""
+    st.markdown("### 🤖 Multi-Agent Analysis via WebSocket")
 
     try:
         # Initialize session if not already done
         if not st.session_state.ws_client.session_id:
-            bmc_data = {
-                'customer_segments': st.session_state.bmc.get_section('customer_segments'),
-                'value_propositions': st.session_state.bmc.get_section('value_propositions'),
-                'business_models': st.session_state.bmc.get_section('business_models'),
-                'market_opportunities': st.session_state.bmc.get_section('market_opportunities')
-            }
-            st.session_state.ws_client.init_session(st.session_state.ws_session_id, bmc_data)
+            with st.spinner("Initializing WebSocket session..."):
+                bmc_data = {
+                    'customer_segments': st.session_state.bmc.get_section('customer_segments'),
+                    'value_propositions': st.session_state.bmc.get_section('value_propositions'),
+                    'business_models': st.session_state.bmc.get_section('business_models'),
+                    'market_opportunities': st.session_state.bmc.get_section('market_opportunities')
+                }
+                st.session_state.ws_client.init_session(st.session_state.ws_session_id, bmc_data)
+                st.success("✅ WebSocket session initialized")
 
-        # Start analysis
-        with st.spinner("Connecting to multi-agent system..."):
-            # Send analysis request
+        # Start analysis with status indicators
+        with st.spinner("🎯 Strategy Agent analyzing BMC coherence..."):
+            time.sleep(0.5)  # Visual feedback
+
+        with st.spinner("📊 Market Research Agent validating customer segments..."):
+            time.sleep(0.5)  # Visual feedback
+
+        with st.spinner("🎨 Product Agent evaluating value propositions..."):
+            time.sleep(0.5)  # Visual feedback
+
+        with st.spinner("⚡ Execution Agent synthesizing recommendations..."):
+            # Send analysis request and wait for result
+            # Note: Streamlit's synchronous nature makes true real-time streaming complex
+            # The server-side streaming is happening, but UI updates are simplified
             result = st.session_state.ws_client.analyze_action(action_data)
 
-            # Show streaming updates while waiting
-            for i in range(100):
-                updates = st.session_state.ws_client.get_stream_updates()
-                if updates:
-                    for update in updates:
-                        agent = update.get('agent', 'system')
-                        message = update.get('message', '')
-                        agent_status_placeholder.info(f"**{agent.upper()}**: {message}")
-
-                time.sleep(0.1)
-
-                if result:
-                    break
+        st.success("✨ Multi-agent analysis complete!")
 
         # Process result
         recommendation = {

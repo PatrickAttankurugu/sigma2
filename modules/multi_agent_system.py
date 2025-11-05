@@ -15,8 +15,6 @@ from dataclasses import dataclass
 import json
 import asyncio
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.agents import AgentExecutor, create_openai_tools_agent
-from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langgraph.graph import StateGraph, END
 from typing_extensions import TypedDict
 from modules.agent_tools import AgentTools
@@ -194,17 +192,6 @@ class MultiAgentSystem:
         self.graph = self._build_graph()
 
         logger.info("Multi-agent system initialized with 4 specialized agents")
-
-    def _create_agent_executor(self, agent_name: str, prompt: str, tools: List) -> AgentExecutor:
-        """Create an agent executor with the given prompt and tools"""
-        prompt_template = ChatPromptTemplate.from_messages([
-            ("system", prompt),
-            MessagesPlaceholder(variable_name="agent_scratchpad"),
-        ])
-
-        # For now, use simple LLM chain since create_openai_tools_agent is for OpenAI
-        # We'll use a simpler approach with direct LLM calls and tool parsing
-        return None  # We'll call LLM directly in agent functions
 
     def _build_graph(self) -> StateGraph:
         """Build the LangGraph workflow"""
