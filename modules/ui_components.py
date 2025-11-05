@@ -3,8 +3,11 @@ Reusable UI Components for SIGMA Actions Co-pilot
 """
 
 import streamlit as st
+import logging
 from typing import List, Dict, Any, Tuple, Optional
 from .bmc_canvas import BusinessModelCanvas
+
+logger = logging.getLogger('sigma.ui')
 
 
 def display_confidence_indicator(confidence: float, label: str = "Confidence"):
@@ -100,7 +103,8 @@ def display_enhanced_next_steps(next_steps: List[Dict[str, Any]]):
     priority_order = {"high": 1, "medium": 2, "low": 3}
     try:
         sorted_steps = sorted(next_steps, key=lambda x: priority_order.get(x.get('priority', 'medium').lower(), 2))
-    except (KeyError, TypeError):
+    except (KeyError, TypeError) as e:
+        logger.warning(f"Failed to sort next steps by priority: {str(e)}. Using original order.")
         sorted_steps = next_steps
     
     for i, step in enumerate(sorted_steps, 1):
