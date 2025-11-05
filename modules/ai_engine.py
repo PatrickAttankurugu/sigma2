@@ -11,6 +11,8 @@ from datetime import datetime
 
 from .bmc_canvas import BusinessModelCanvas
 from .utils import LoggingMixin
+from . import config
+from .validators import InputValidator
 
 
 @dataclass
@@ -61,7 +63,30 @@ class AIQualityValidator:
         return quality
     
     def _score_specificity(self, response: Dict[str, Any]) -> float:
-        """Score how specific vs generic the response is"""
+        """
+        Score how specific vs generic the response is
+
+        This scoring function evaluates the specificity of AI recommendations
+        by penalizing generic language and rewarding concrete details.
+
+        Algorithm:
+        1. Start with base score of 1.0
+        2. Penalize generic phrases (max -0.4 total)
+           - Each generic phrase reduces score by 0.1
+           - Generic phrases include: improve, enhance, optimize, etc.
+        3. Reward numeric data (+0.2)
+           - Any numbers in the response indicate specific metrics
+        4. Reward detailed next steps (+0.1 per detailed step, max +0.3)
+           - Steps longer than 100 characters are considered detailed
+
+        Score range: 0.0 to 1.0
+
+        Args:
+            response: The AI response dictionary to score
+
+        Returns:
+            Specificity score between 0.0 and 1.0
+        """
         score = 1.0
         
         generic_phrases = [
@@ -86,7 +111,30 @@ class AIQualityValidator:
         return max(0.0, min(1.0, score))
     
     def _score_evidence_alignment(self, response: Dict[str, Any], action_data: Dict[str, Any]) -> float:
-        """Score how well the response aligns with action evidence"""
+        """
+        Score how well the response aligns with action evidence
+
+        This scoring function evaluates whether AI recommendations are
+        appropriately calibrated to the action's outcome.
+
+        Algorithm:
+        1. Start with base score of 0.7
+        2. For successful outcomes (+0.1):
+           - Reward responses suggesting growth/expansion
+           - Keywords: scale, expand, grow, increase, more
+        3. For failed outcomes (+0.1):
+           - Reward responses suggesting pivots/changes
+           - Keywords: pivot, change, different, alternative, reconsider
+
+        Score range: 0.7 to 1.0
+
+        Args:
+            response: The AI response dictionary to score
+            action_data: The action data including outcome
+
+        Returns:
+            Evidence alignment score between 0.7 and 1.0
+        """
         score = 0.7
         
         action_text = (action_data.get('results', '') + ' ' + action_data.get('description', '')).lower()
@@ -105,7 +153,30 @@ class AIQualityValidator:
         return min(1.0, score)
     
     def _score_actionability(self, response: Dict[str, Any]) -> float:
-        """Score how actionable the recommendations are"""
+        """
+        Score how actionable the recommendations are
+
+        This scoring function evaluates whether recommendations include
+        concrete, implementable details.
+
+        Algorithm:
+        1. Start with base score of 0.5
+        2. For each change recommendation:
+           - Reward substantive new values (+0.05 if > 20 chars)
+           - Reward detailed reasoning (+0.05 if > 30 chars)
+        3. For each next step:
+           - Reward timeline + resources specified (+0.1)
+           - Reward success metrics defined (+0.1)
+           - Reward detailed descriptions (+0.05 if > 50 chars)
+
+        Score range: 0.5 to 1.0
+
+        Args:
+            response: The AI response dictionary to score
+
+        Returns:
+            Actionability score between 0.5 and 1.0
+        """
         score = 0.5
         
         changes = response.get('changes', [])
@@ -133,7 +204,30 @@ class AIQualityValidator:
         return min(1.0, score)
     
     def _score_consistency(self, response: Dict[str, Any]) -> float:
-        """Score internal consistency of recommendations"""
+        """
+        Score internal consistency of recommendations
+
+        This scoring function evaluates whether the response is
+        internally coherent and complete.
+
+        Algorithm:
+        1. Start with perfect score of 1.0
+        2. Penalize for contradictory recommendations (-0.2)
+        3. Penalize for incomplete change specifications (-0.1 each)
+           - Missing 'new' value
+           - Missing 'reason' field
+        4. Penalize for incomplete next steps (-0.1 each)
+           - Missing timeline
+           - Missing resources_needed
+
+        Score range: 0.0 to 1.0
+
+        Args:
+            response: The AI response dictionary to score
+
+        Returns:
+            Consistency score between 0.0 and 1.0
+        """
         score = 1.0
         
         changes = response.get('changes', [])
@@ -172,11 +266,11 @@ class AIQualityValidator:
     
     def should_retry(self, quality: ResponseQuality) -> bool:
         """Determine if response quality is too low and should retry"""
-        if quality.overall_score < 0.4:
+        if quality.overall_score < config.QUALITY_THRESHOLD_MIN:
             return True
-        if len(quality.issues) > 3:
+        if len(quality.issues) > config.MAX_QUALITY_ISSUES:
             return True
-        if quality.specificity_score < 0.3:
+        if quality.specificity_score < config.SPECIFICITY_MIN_THRESHOLD:
             return True
         return False
     
@@ -228,20 +322,20 @@ class QualityEnhancedAI(LoggingMixin):
             
             self.llm = ChatGoogleGenerativeAI(
                 api_key=api_key,
-                model="gemini-2.0-flash",
-                temperature=0.3,
-                max_output_tokens=2000,
-                timeout=30
+                model=config.LLM_MODEL,
+                temperature=config.LLM_TEMPERATURE,
+                max_output_tokens=config.LLM_MAX_TOKENS,
+                timeout=config.LLM_TIMEOUT
             )
             self.SystemMessage = SystemMessage
             self.HumanMessage = HumanMessage
             self.quality_validator = AIQualityValidator()
-            self.max_retries = 2
-            
+            self.max_retries = config.MAX_QUALITY_RETRIES
+
             self.log_ai_performance("ai_initialization", 0, True, {
-                "model": "gemini-2.0-flash",
-                "quality_validation": True,
-                "enhanced_next_steps": True
+                "model": config.LLM_MODEL,
+                "quality_validation": config.FEATURE_QUALITY_VALIDATION,
+                "enhanced_next_steps": config.FEATURE_NEXT_STEPS_GENERATION
             })
             
         except ImportError as e:
@@ -250,7 +344,10 @@ class QualityEnhancedAI(LoggingMixin):
 
     def analyze_action_with_quality_control(self, action_data: Dict[str, Any], bmc: BusinessModelCanvas) -> Tuple[Dict[str, Any], ResponseQuality]:
         """Analyze action with quality validation and retry logic"""
-        
+
+        # Sanitize input data to prevent prompt injection
+        action_data = InputValidator.sanitize_llm_input(action_data)
+
         start_time = time.time()
         analysis_id = str(uuid.uuid4())[:8]
         
@@ -424,7 +521,7 @@ Return only the JSON response."""
         self.log_ai_performance("quality_api_call", int(api_duration), True, {
             "analysis_id": analysis_id,
             "response_length": len(response.content),
-            "model": "gemini-2.0-flash",
+            "model": config.LLM_MODEL,
             "business_stage": business_stage
         })
         
@@ -468,22 +565,41 @@ Return only the JSON response."""
             return last_response
 
     def _parse_response(self, content: str) -> Dict[str, Any]:
-        """Parse AI response content to JSON"""
+        """Parse AI response content to JSON with robust error handling"""
         content = content.strip()
-        
-        if "```json" in content:
-            json_part = content.split("```json")[1].split("```")[0].strip()
-        elif "```" in content:
-            json_part = content.split("```")[1].split("```")[0].strip()
-        else:
-            start = content.find("{")
-            end = content.rfind("}") + 1
-            if start >= 0 and end > start:
-                json_part = content[start:end]
-            else:
-                json_part = content
-        
-        result = json.loads(json_part)
+        json_part = None
+
+        try:
+            # Try to extract JSON from markdown code blocks
+            if "```json" in content:
+                parts = content.split("```json")
+                if len(parts) > 1:
+                    json_part = parts[1].split("```")[0].strip()
+            elif "```" in content:
+                parts = content.split("```")
+                if len(parts) > 1:
+                    json_part = parts[1].split("```")[0].strip()
+
+            # Fall back to finding JSON braces
+            if not json_part:
+                start = content.find("{")
+                end = content.rfind("}") + 1
+                if start >= 0 and end > start:
+                    json_part = content[start:end]
+                else:
+                    json_part = content
+
+            # Parse JSON with error handling
+            result = json.loads(json_part)
+
+        except (json.JSONDecodeError, IndexError, ValueError) as e:
+            # Log the parsing error and return a safe fallback structure
+            self.logger.error(f"JSON parsing failed: {str(e)}\nContent preview: {content[:200]}...")
+            result = {
+                "analysis": "Unable to parse AI response. Please try again.",
+                "changes": [],
+                "next_steps": []
+            }
         
         if 'analysis' not in result:
             result['analysis'] = "Analysis completed successfully"

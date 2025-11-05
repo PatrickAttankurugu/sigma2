@@ -11,7 +11,22 @@ from dotenv import load_dotenv
 from modules.business_design import BusinessDesignManager
 from modules.bmc_canvas import BusinessModelCanvas
 from modules.ai_engine import QualityEnhancedAI
-from modules.ui_components import *
+from modules import config
+from modules.validators import InputValidator
+from modules.ui_components import (
+    render_header,
+    render_sidebar_info,
+    render_footer,
+    render_business_canvas,
+    render_action_form,
+    get_current_action,
+    clear_current_action,
+    render_session_metrics,
+    display_quality_indicator,
+    display_change_preview,
+    display_confidence_indicator,
+    display_enhanced_next_steps
+)
 from modules.utils import setup_logging, SessionMetrics
 
 load_dotenv()
@@ -37,7 +52,7 @@ def main():
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
         app_logger.error("No Google API key found in environment")
-        st.error("No Google API key found")
+        st.error(config.ERROR_INVALID_API_KEY)
         st.code("""
 # Create .env file with:
 GOOGLE_API_KEY=your_actual_google_api_key_here
@@ -45,9 +60,13 @@ GOOGLE_API_KEY=your_actual_google_api_key_here
 # Get API key from: https://makersuite.google.com/app/apikey
         """)
         st.stop()
-    elif api_key == "your_google_api_key_here":
-        app_logger.error("Placeholder API key detected")
-        st.error("Please replace the placeholder API key in your .env file with your actual Google API key")
+
+    # Validate API key
+    valid_key, key_error = InputValidator.validate_api_key(api_key)
+    if not valid_key:
+        app_logger.error(f"API key validation failed: {key_error}")
+        st.error(f"API Key Error: {key_error}")
+        st.info("Get your API key from: https://makersuite.google.com/app/apikey")
         st.stop()
 
     if 'bmc' not in st.session_state:
@@ -214,8 +233,8 @@ def display_analysis_results(recommendation: dict, quality, action_data: dict):
         st.subheader("Individual Changes")
         for i, change in enumerate(recommendation["changes"]):
             confidence = change.get("confidence", 0)
-            
-            if confidence >= 0.8:
+
+            if confidence >= config.AUTO_APPLY_MIN_CONFIDENCE:
                 high_confidence_changes.append(change)
             
             section_display = st.session_state.bmc.get_section_display_name(change['section'])
@@ -251,7 +270,7 @@ def display_analysis_results(recommendation: dict, quality, action_data: dict):
             with col_apply:
                 if st.button("Apply All Changes", use_container_width=True, key="apply_changes"):
                     for change in recommendation["changes"]:
-                        if change.get("confidence", 0) >= 0.6:
+                        if change.get("confidence", 0) >= config.CONFIDENCE_LOW:
                             changes_applied += apply_change_to_bmc(change)
                     
                     if changes_applied > 0:
@@ -320,7 +339,8 @@ def apply_change_to_bmc(change: dict) -> int:
             current_items[idx] = change["new"]
             st.session_state.bmc.update_section(section, current_items)
             return 1
-        except ValueError:
+        except ValueError as e:
+            app_logger.warning(f"Could not find item to modify in {section}. Adding as new item instead. Item: {change.get('current')}")
             current_items.append(change["new"])
             st.session_state.bmc.update_section(section, current_items)
             return 1
@@ -330,7 +350,8 @@ def apply_change_to_bmc(change: dict) -> int:
             current_items.remove(change["current"])
             st.session_state.bmc.update_section(section, current_items)
             return 1
-        except ValueError:
+        except ValueError as e:
+            app_logger.warning(f"Could not find item to remove from {section}. Item may have already been removed: {change.get('current')}")
             pass
     
     return 0
