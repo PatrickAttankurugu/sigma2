@@ -1,163 +1,330 @@
-# SIGMA Agentic AI Actions Co-pilot
+# 🤖 Azuma AI - Your Intelligent AI/ML Learning Companion
 
-**Seedstars Senior AI Engineer Assignment - Option 2**
+**Transform your AI/ML learning journey with intelligent, adaptive tutors powered by agentic AI!**
 
-A functional prototype demonstrating an agentic AI system that automatically updates business model canvases based on completed actions and suggests strategic next steps.
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)](https://streamlit.io)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com)
+[![PydanticAI](https://img.shields.io/badge/PydanticAI-Latest-purple.svg)](https://ai.pydantic.dev)
 
-## Overview
+---
 
-This application implements a two-phase entrepreneur journey:
+## 🌟 What is Azuma AI?
 
-1. **Business Design Phase** - Users define their business model across 4 key sections
-2. **Actions Phase** - Users log completed experiments/actions, and AI automatically analyzes outcomes and updates the business model
+Azuma AI is an **innovative agentic AI tutor platform** that makes learning AI and Machine Learning engaging, personalized, and fun! Unlike traditional learning platforms, Azuma AI features **specialized AI tutors** with unique personalities that proactively guide you through your learning journey.
 
-## Key Features
+### 🎯 Key Features
 
-### Core Requirements (Assignment)
-- ✅ **Preview of BMC Changes** - Shows before/after view with Apply button
-- ✅ **Auto-mode Toggle** - Automatically applies high-confidence changes (>80%)
-- ✅ **Idempotent Behavior** - Prevents duplicate updates for same results
-- ✅ **Quality Validation** - AI response quality scoring with retry logic
+#### 🧠 **Multiple Specialized AI Tutors**
+- **Prof. Data** 📊 - Your friendly ML fundamentals expert
+- **Neural** 🧠 - Deep learning enthusiast with visual teaching style
+- **Vision** 👁️ - Computer vision specialist
+- **Linguist** 📝 - NLP expert who demystifies transformers
 
-### Enhanced Features
-- **Business Intelligence** - Stage-aware recommendations (validation/growth/scale)
-- **Strategic Next Steps** - Detailed implementation guidance with timelines, resources, and success metrics
-- **Session Management** - Comprehensive logging and metrics tracking
-- **Sample Actions** - Context-aware sample experiments based on business stage
+Each tutor has a unique personality, teaching style, and expertise!
 
-## Technical Architecture
+#### 🎓 **Adaptive Learning System**
+- **Personalized Learning Paths** - AI generates custom curricula based on your goals
+- **Real-time Difficulty Adjustment** - Content adapts to your performance
+- **Knowledge Graph Tracking** - Visualize your learning progress
+- **Spaced Repetition** - Intelligent review recommendations
 
-### Components
-- **Business Model Canvas** (`bmc_canvas.py`) - Core business model management
-- **AI Engine** (`ai_engine.py`) - Quality-validated LLM integration with Google Gemini
-- **Business Design Manager** (`business_design.py`) - Initial setup flow
-- **UI Components** (`ui_components.py`) - Reusable interface elements
-- **Session Metrics** (`utils.py`) - Logging and analytics
+#### 🎮 **Gamification & Engagement**
+- **Points & Leveling System** - Earn XP as you learn
+- **Badges & Achievements** - 30+ unique badges to unlock
+- **Daily Challenges** - Keep your learning streak alive
+- **Leaderboards** - Compete with other learners
+- **Progress Visualization** - Beautiful knowledge maps
 
-### AI Quality System
-- **Specificity Scoring** - Reduces generic business language
-- **Evidence Alignment** - Ensures recommendations match action outcomes
-- **Actionability Assessment** - Validates practical implementation feasibility
-- **Retry Logic** - Automatically improves low-quality responses
+#### 💬 **Interactive Learning**
+- **Real-time Chat** - Conversation with AI tutors via WebSocket
+- **Socratic Method** - Tutors ask guiding questions
+- **Code Examples** - Executable Python code snippets
+- **Visual Explanations** - Diagrams and visualizations
+- **Instant Feedback** - Immediate assessment and suggestions
 
-## Installation & Setup
+#### 📚 **Comprehensive Curriculum**
+- Python for ML (NumPy, Pandas, Matplotlib)
+- Math Foundations (Linear Algebra, Calculus, Statistics)
+- Machine Learning (Supervised, Unsupervised, Evaluation)
+- Deep Learning (Neural Networks, Backprop, Optimization)
+- Computer Vision (CNNs, Object Detection, Segmentation)
+- NLP (Transformers, BERT, GPT, Attention)
+- Reinforcement Learning (Q-Learning, DQN, Policy Gradients)
+- MLOps (Deployment, Monitoring, MLflow)
 
-1. **Clone Repository**
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Python 3.8 or higher
+- Google API Key ([Get one here](https://makersuite.google.com/app/apikey))
+
+### Installation
+
+1. **Clone the repository**
    ```bash
-   git clone [repository-url]
-   cd sigma-actions-copilot
+   git clone https://github.com/PatrickAttankurugu/sigma2.git
+   cd sigma2
    ```
 
-2. **Install Dependencies**
+2. **Install dependencies**
    ```bash
    pip install -r requirements.txt
    ```
 
-3. **Configure API Key**
+3. **Set up environment variables**
    ```bash
    cp .env.example .env
    # Edit .env and add your Google API key
-   GOOGLE_API_KEY=your_actual_google_api_key_here
+   echo "GOOGLE_API_KEY=your_actual_api_key_here" > .env
    ```
 
-4. **Run Application**
+4. **Run the application**
    ```bash
-   streamlit run app.py
+   streamlit run azuma_app.py
    ```
 
-## Usage Flow
-
-### Phase 1: Business Design
-1. Define Customer Segments (1-5 items)
-2. Specify Value Propositions
-3. Describe Business Models
-4. Outline Market Opportunities
-
-### Phase 2: Actions & Analysis
-1. Toggle Auto-mode (optional)
-2. Select sample action or create custom experiment
-3. Log action outcome (Successful/Failed/Inconclusive)
-4. AI analyzes and proposes BMC updates
-5. Review and apply changes
-6. Follow strategic next steps
-
-## Sample Workflow
-
-**Example: Customer Interview Action**
-- **Input**: "Customer discovery interviews with 20 potential small business owners"
-- **Outcome**: Successful
-- **AI Analysis**: Updates Customer Segments with validated insights
-- **Next Steps**: Generates specific MVP testing recommendations with timelines
-
-## Auto-mode Behavior
-
-- **ON**: Changes with >80% confidence applied immediately
-- **OFF**: Manual approval required for all changes
-- **Safety**: Only applies changes with confidence >60%
-
-## Quality Validation
-
-The AI system includes multi-layer quality checks:
-- **Response Scoring**: 0-100% quality assessment
-- **Issue Detection**: Identifies generic language, missing evidence
-- **Automatic Retry**: Improves responses below quality threshold
-- **Fallback Handling**: Graceful degradation for system failures
-
-## File Structure
-
-```
-sigma-actions-copilot/
-├── app.py                 # Main Streamlit application
-├── requirements.txt       # Python dependencies
-├── .env.example          # Environment configuration template
-├── modules/
-│   ├── __init__.py
-│   ├── ai_engine.py      # AI analysis and quality validation
-│   ├── bmc_canvas.py     # Business Model Canvas logic
-│   ├── business_design.py # Initial business setup
-│   ├── ui_components.py  # Reusable UI elements
-│   └── utils.py          # Logging and session management
-└── logs/                 # Application logs (auto-generated)
-```
-
-## Technical Decisions
-
-### LLM Integration
-- **Model**: Google Gemini 2.0 Flash for balance of quality and speed
-- **Framework**: LangChain for structured prompt management
-- **Quality Control**: Custom validation layer with retry logic
-
-### State Management
-- **Streamlit Session State** for persistent user data
-- **Structured Logging** for debugging and analytics
-- **Change History** tracking for audit trail
-
-### Business Logic
-- **Stage Detection** based on content analysis (validation/growth/scale)
-- **Risk Assessment** automated from business model content
-- **Sample Actions** dynamically generated based on user's business context
-
-## Assignment Compliance
-
-This implementation fully addresses Option 2 requirements:
-
-✅ **Functional Prototype** - Complete working application
-✅ **BMC Update Preview** - Before/after change visualization
-✅ **Apply Button** - Manual change approval
-✅ **Auto-mode Toggle** - Automatic vs manual change application
-✅ **Idempotent Behavior** - Prevents duplicate updates
-✅ **Version History** - Session logging and change tracking
-
-## Future Enhancements
-
-- Multi-agent architecture for specialized domain expertise
-- Integration with real SIGMA platform APIs
-- Advanced analytics dashboard
-- Team collaboration features
-- Export capabilities for business plans
+5. **Open your browser**
+   Navigate to `http://localhost:8501`
 
 ---
 
-**Contact**: Patrick Attankurugu  
-**Email**: patricka.azuma@gmail.com  
-**GitHub**: https://github.com/PatrickAttankurugu
+## 🏗️ Architecture
+
+### Tech Stack
+
+- **Frontend**: Streamlit (Interactive UI)
+- **Backend**: FastAPI (REST API + WebSocket)
+- **AI Framework**: PydanticAI (Agentic AI)
+- **LLM**: Google Gemini 2.0 Flash
+- **Orchestration**: LangGraph (Complex workflows)
+- **Visualization**: Plotly, NetworkX
+
+### System Components
+
+```
+azuma/
+├── agents/              # AI Tutors (PydanticAI)
+│   ├── base_tutor.py   # Base tutor class
+│   └── teaching_agents.py  # Specialized tutors
+├── learning/            # Adaptive Learning System
+│   └── adaptive_path.py    # Personalized curriculum
+├── gamification/        # Engagement System
+│   └── achievement_system.py  # Badges, points, levels
+├── knowledge/           # Knowledge Graph
+│   └── knowledge_graph.py     # Topic relationships
+├── backend/             # FastAPI Server
+│   └── api_server.py          # REST + WebSocket APIs
+└── models/              # Pydantic Models
+    ├── user.py         # User profiles
+    └── lesson.py       # Lessons, quizzes, exercises
+```
+
+---
+
+## 📖 How to Use
+
+### 1. Create Your Profile
+
+When you first launch Azuma AI, you'll create a personalized profile:
+- Choose your experience level (Beginner → Expert)
+- Select your learning style (Visual, Hands-on, Theoretical, etc.)
+- Set your learning goals
+- Pick topics of interest
+
+### 2. Choose Your Tutor
+
+Select from 4 specialized AI tutors based on what you want to learn:
+- **ML Fundamentals** → Prof. Data
+- **Deep Learning** → Neural
+- **Computer Vision** → Vision
+- **NLP** → Linguist
+
+### 3. Start Learning!
+
+- **Chat Interface**: Ask questions, get explanations, receive code examples
+- **Learning Dashboard**: See recommended topics, daily challenges, progress
+- **Knowledge Map**: Visualize your learning journey
+- **Achievements**: Track badges, points, and level progress
+
+### 4. Complete Challenges
+
+- Daily challenges for bonus points
+- Quiz questions to test understanding
+- Code exercises for hands-on practice
+- Projects to apply your skills
+
+---
+
+## 🎓 Learning Paths
+
+Azuma AI offers pre-built and AI-generated learning paths:
+
+### Beginner Track
+1. Python Basics → NumPy → Pandas
+2. Math Foundations → Statistics
+3. Introduction to ML → Supervised Learning
+4. First ML Project
+
+### Intermediate Track
+1. Neural Networks → Deep Learning
+2. CNNs → Computer Vision
+3. RNNs → NLP Basics
+4. Advanced Projects
+
+### Advanced Track
+1. Transformers → BERT/GPT
+2. Object Detection → Segmentation
+3. Reinforcement Learning
+4. MLOps & Deployment
+
+---
+
+## 🏆 Gamification
+
+### Levels (1-10)
+- Level 1: AI Novice (0 points)
+- Level 5: AI Engineer (5,000 points)
+- Level 10: AI Guru (30,000 points)
+
+### Badge Categories
+- **Milestone Badges**: First lesson, 10 lessons, 50 lessons
+- **Streak Badges**: 3, 7, 30, 100 day streaks
+- **Mastery Badges**: Topic mastery (ML, DL, CV, NLP)
+- **Special Badges**: Early bird, night owl, perfectionist
+- **Challenge Badges**: Speed learner, marathon learner
+
+### Points System
+- Lesson completed: 50 points
+- Quiz passed: 30 points
+- Perfect quiz: 100 points
+- Code exercise: 40 points
+- Project completed: 500 points
+- Daily challenge: Variable points
+
+---
+
+## 🔧 Advanced Features
+
+### FastAPI Backend
+
+Run the API server separately for advanced features:
+
+```bash
+python -m azuma.backend.api_server
+```
+
+The API provides:
+- User management endpoints
+- Progress tracking
+- Learning path generation
+- Leaderboards
+- Knowledge graph data
+- WebSocket chat
+
+### API Endpoints
+
+- `POST /api/users/register` - Register new user
+- `GET /api/users/{user_id}/stats` - Get user statistics
+- `POST /api/learning-paths/generate` - Generate personalized path
+- `GET /api/gamification/leaderboard` - Global leaderboard
+- `WS /ws/chat/{user_id}` - WebSocket chat with tutors
+
+---
+
+## 🎨 Customization
+
+### Adding Custom Topics
+
+Edit `azuma/knowledge/knowledge_graph.py` to add new topics to the knowledge graph.
+
+### Creating New Tutors
+
+Extend `BaseTutor` in `azuma/agents/base_tutor.py` and add your tutor to `teaching_agents.py`.
+
+### Custom Badges
+
+Add badges in `azuma/gamification/achievement_system.py`.
+
+---
+
+## 📊 Analytics & Insights
+
+Azuma AI tracks:
+- Learning velocity (lessons per week)
+- Best time of day for learning
+- Topic mastery scores
+- Engagement metrics
+- Streak consistency
+- Performance trends
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Here's how:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- **PydanticAI** - For the amazing agentic AI framework
+- **Google Gemini** - For powerful LLM capabilities
+- **Streamlit** - For rapid UI development
+- **FastAPI** - For high-performance APIs
+
+---
+
+## 👨‍💻 Author
+
+**Patrick Attankurugu**
+- Email: patricka.azuma@gmail.com
+- GitHub: [@PatrickAttankurugu](https://github.com/PatrickAttankurugu)
+
+---
+
+## 🔮 Future Enhancements
+
+- [ ] Voice interaction with tutors
+- [ ] Mobile app (React Native)
+- [ ] Collaborative learning (study groups)
+- [ ] Integration with Jupyter notebooks
+- [ ] Automatic code review for exercises
+- [ ] Video explanations generation
+- [ ] Research paper discussions
+- [ ] Industry mentorship matching
+
+---
+
+## ⭐ Show Your Support
+
+If you find Azuma AI helpful, please:
+- ⭐ Star this repository
+- 🐛 Report bugs
+- 💡 Suggest features
+- 📢 Share with others learning AI/ML
+
+---
+
+<div align="center">
+
+**Made with ❤️ for the AI/ML learning community**
+
+[Get Started](#-quick-start) • [Documentation](#-how-to-use) • [Contribute](#-contributing)
+
+</div>
