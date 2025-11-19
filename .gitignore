@@ -42,8 +42,6 @@ dist/
 Thumbs.db
 
 # Local data/output
-business_model.csv
-change_history.json
 data/
 data\
 logs/
