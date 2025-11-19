@@ -24,7 +24,6 @@ load_dotenv()
 # Page config
 st.set_page_config(
     page_title="Azuma AI - Learn AI/ML with AI Tutors",
-    page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -100,7 +99,7 @@ def initialize_session():
 
 def render_header():
     """Render the main header"""
-    st.markdown('<div class="main-header">🤖 Azuma AI</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header">Azuma AI</div>', unsafe_allow_html=True)
     st.markdown(
         '<p style="text-align: center; font-size: 1.2rem; color: #666;">Your Intelligent AI/ML Learning Companion</p>',
         unsafe_allow_html=True
@@ -109,7 +108,7 @@ def render_header():
 
 def render_user_registration():
     """Render user registration form"""
-    st.title("Welcome to Azuma AI! 🎓")
+    st.title("Welcome to Azuma AI!")
     st.write("Let's create your personalized learning profile!")
 
     with st.form("registration_form"):
@@ -158,7 +157,7 @@ def render_user_registration():
             ]
         )
 
-        submitted = st.form_submit_button("Start Learning! 🚀", use_container_width=True)
+        submitted = st.form_submit_button("Start Learning", use_container_width=True)
 
         if submitted and username:
             # Create user profile
@@ -172,7 +171,7 @@ def render_user_registration():
                 goals=goals,
                 interests=interests
             )
-            st.success(f"Welcome aboard, {username}! 🎉")
+            st.success(f"Welcome aboard, {username}!")
             st.rerun()
 
 
@@ -199,12 +198,12 @@ def render_sidebar():
         st.markdown("---")
 
         # Stats
-        st.markdown("### 📊 Stats")
+        st.markdown("### Stats")
 
         col1, col2 = st.columns(2)
         with col1:
             st.metric("Points", user.total_points)
-            st.metric("Streak", f"{user.current_streak} 🔥")
+            st.metric("Streak", user.current_streak)
 
         with col2:
             st.metric("Lessons", len(user.completed_lessons))
@@ -213,7 +212,7 @@ def render_sidebar():
         st.markdown("---")
 
         # Tutor Selection
-        st.markdown("### 🎓 Choose Your Tutor")
+        st.markdown("### Choose Your Tutor")
 
         tutors = {
             "Prof. Data": {"emoji": "📊", "specialty": "ML Fundamentals"},
@@ -237,18 +236,18 @@ def render_sidebar():
         st.markdown("---")
 
         # Navigation
-        st.markdown("### 🧭 Navigate")
+        st.markdown("### Navigate")
 
-        if st.button("📚 Learning Dashboard", use_container_width=True):
+        if st.button("Learning Dashboard", use_container_width=True):
             st.session_state.current_page = "dashboard"
 
-        if st.button("💬 Chat with Tutor", use_container_width=True):
+        if st.button("Chat with Tutor", use_container_width=True):
             st.session_state.current_page = "chat"
 
-        if st.button("🗺️ Knowledge Map", use_container_width=True):
+        if st.button("Knowledge Map", use_container_width=True):
             st.session_state.current_page = "knowledge_map"
 
-        if st.button("🏆 Achievements", use_container_width=True):
+        if st.button("Achievements", use_container_width=True):
             st.session_state.current_page = "achievements"
 
 
@@ -256,14 +255,14 @@ def render_dashboard():
     """Render the learning dashboard"""
     user = st.session_state.user_profile
 
-    st.title("📚 Your Learning Dashboard")
+    st.title("Your Learning Dashboard")
 
     # Daily Challenge
     col1, col2, col3 = st.columns(3)
 
     with col1:
         st.markdown('<div class="stat-card">', unsafe_allow_html=True)
-        st.markdown("#### 🎯 Daily Challenge")
+        st.markdown("#### Daily Challenge")
         challenge = st.session_state.gamification.get_daily_challenge()
         st.write(f"**{challenge['title']}**")
         st.write(challenge['description'])
@@ -272,14 +271,14 @@ def render_dashboard():
 
     with col2:
         st.markdown('<div class="stat-card">', unsafe_allow_html=True)
-        st.markdown("#### 📈 Progress This Week")
+        st.markdown("#### Progress This Week")
         st.metric("Lessons Completed", len(user.completed_lessons))
         st.metric("Topics Mastered", len(user.mastered_topics))
         st.markdown('</div>', unsafe_allow_html=True)
 
     with col3:
         st.markdown('<div class="stat-card">', unsafe_allow_html=True)
-        st.markdown("#### 🏅 Latest Badges")
+        st.markdown("#### Latest Badges")
         if user.badges:
             for badge_id in user.badges[-3:]:
                 badge = st.session_state.gamification.badges.get(badge_id)
@@ -292,7 +291,7 @@ def render_dashboard():
     st.markdown("---")
 
     # Recommended Topics
-    st.markdown("### 🎯 Recommended for You")
+    st.markdown("### Recommended for You")
 
     mastered = user.mastered_topics
     next_topics = st.session_state.knowledge_graph.get_next_topics(mastered, limit=5)
@@ -455,7 +454,7 @@ def render_knowledge_map():
     st.markdown("---")
 
     # Category progress
-    st.markdown("### 📚 Progress by Category")
+    st.markdown("### Progress by Category")
 
     categories = stats.get("categories", {})
 
@@ -467,11 +466,11 @@ def render_knowledge_map():
 
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.write(f"✅ Mastered: {cat_stats['mastered']}")
+            st.write(f"Mastered: {cat_stats['mastered']}")
         with col2:
-            st.write(f"📖 Learning: {cat_stats['in_progress']}")
+            st.write(f"Learning: {cat_stats['in_progress']}")
         with col3:
-            st.write(f"🔒 Locked: {cat_stats['locked']}")
+            st.write(f"Locked: {cat_stats['locked']}")
 
         st.markdown("---")
 
@@ -552,7 +551,7 @@ def main():
 
     # Check for API key
     if not st.session_state.api_key:
-        st.error("⚠️ API Key Not Found!")
+        st.error("API Key Not Found!")
         st.warning("Please create a `.env` file in the project root with your Google API key:")
         st.code("GOOGLE_API_KEY=your_actual_google_api_key_here")
         st.info("Get your API key from: https://makersuite.google.com/app/apikey")

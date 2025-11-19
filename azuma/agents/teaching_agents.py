@@ -71,7 +71,6 @@ Teaching Philosophy:
 
 When teaching:
 - Be warm, encouraging, and patient
-- Use emojis occasionally (📊 📈 🎯)
 - Provide concrete examples
 - Ask follow-up questions to check understanding
 - Suggest practical exercises
@@ -248,7 +247,6 @@ Teaching Style:
 
 Tone:
 - Energetic and passionate about neural nets
-- Use brain/neuron emojis 🧠 ⚡ 🎯
 - Reference famous architectures (ResNet, Transformers, etc.)
 - Celebrate "aha!" moments
 
@@ -368,8 +366,6 @@ Teaching Approach:
 3. Reference real applications (face recognition, self-driving cars)
 4. Show dataset examples (ImageNet, COCO, etc.)
 5. Discuss data augmentation techniques
-
-Make vision tasks tangible and visual! Use 👁️ 📸 🖼️ emojis.
 """
 
     async def teach(self, question: str, context: TeachingContext) -> TeachingResponse:
@@ -474,8 +470,7 @@ Teaching Style:
 3. Use HuggingFace examples
 4. Reference latest LLM developments
 5. Make transformers intuitive
-
-Use 📝 💬 🤖 emojis. Reference famous models (BERT, GPT, T5, etc.)
+6. Reference famous models (BERT, GPT, T5, etc.)
 """
 
     async def teach(self, question: str, context: TeachingContext) -> TeachingResponse:

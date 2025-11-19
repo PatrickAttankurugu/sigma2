@@ -12,17 +12,7 @@ class InputValidator:
 
     @staticmethod
     def sanitize_text(text: str, max_length: Optional[int] = None) -> str:
-        """
-        Sanitize text input by removing potentially harmful characters
-        and enforcing length limits
-
-        Args:
-            text: Input text to sanitize
-            max_length: Maximum allowed length (optional)
-
-        Returns:
-            Sanitized text
-        """
+        """Sanitize text by removing control characters and enforcing length limits."""
         if not isinstance(text, str):
             return ""
 
@@ -41,15 +31,7 @@ class InputValidator:
 
     @staticmethod
     def validate_action_title(title: str) -> Tuple[bool, str]:
-        """
-        Validate action title
-
-        Args:
-            title: Action title to validate
-
-        Returns:
-            Tuple of (is_valid, error_message)
-        """
+        """Validate action title. Returns (is_valid, error_message)."""
         title = InputValidator.sanitize_text(title, config.MAX_ACTION_TITLE_LENGTH)
 
         if not title:
@@ -65,15 +47,7 @@ class InputValidator:
 
     @staticmethod
     def validate_action_description(description: str) -> Tuple[bool, str]:
-        """
-        Validate action description
-
-        Args:
-            description: Action description to validate
-
-        Returns:
-            Tuple of (is_valid, error_message)
-        """
+        """Validate action description. Returns (is_valid, error_message)."""
         description = InputValidator.sanitize_text(description, config.MAX_ACTION_DESCRIPTION_LENGTH)
 
         if not description:
@@ -89,15 +63,7 @@ class InputValidator:
 
     @staticmethod
     def validate_outcome(outcome: str) -> Tuple[bool, str]:
-        """
-        Validate action outcome details
-
-        Args:
-            outcome: Outcome details to validate
-
-        Returns:
-            Tuple of (is_valid, error_message)
-        """
+        """Validate action outcome details. Returns (is_valid, error_message)."""
         outcome = InputValidator.sanitize_text(outcome, config.MAX_OUTCOME_LENGTH)
 
         if not outcome:
@@ -113,15 +79,7 @@ class InputValidator:
 
     @staticmethod
     def validate_business_name(name: str) -> Tuple[bool, str]:
-        """
-        Validate business name
-
-        Args:
-            name: Business name to validate
-
-        Returns:
-            Tuple of (is_valid, error_message)
-        """
+        """Validate business name. Returns (is_valid, error_message)."""
         name = InputValidator.sanitize_text(name, config.MAX_BUSINESS_NAME_LENGTH)
 
         if not name:
@@ -134,16 +92,7 @@ class InputValidator:
 
     @staticmethod
     def validate_bmc_section_item(item: str, section_name: str) -> Tuple[bool, str]:
-        """
-        Validate BMC section item
-
-        Args:
-            item: Section item to validate
-            section_name: Name of the BMC section
-
-        Returns:
-            Tuple of (is_valid, error_message)
-        """
+        """Validate BMC section item. Returns (is_valid, error_message)."""
         item = InputValidator.sanitize_text(item, config.MAX_SECTION_ITEM_LENGTH)
 
         if not item:
@@ -156,15 +105,7 @@ class InputValidator:
 
     @staticmethod
     def sanitize_llm_input(data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Sanitize data before sending to LLM to prevent prompt injection
-
-        Args:
-            data: Dictionary of data to sanitize
-
-        Returns:
-            Sanitized dictionary
-        """
+        """Sanitize data before sending to LLM to prevent prompt injection."""
         sanitized = {}
 
         for key, value in data.items():
@@ -205,15 +146,7 @@ class InputValidator:
 
     @staticmethod
     def validate_api_key(api_key: str) -> Tuple[bool, str]:
-        """
-        Validate Google API key format
-
-        Args:
-            api_key: API key to validate
-
-        Returns:
-            Tuple of (is_valid, error_message)
-        """
+        """Validate Google API key format. Returns (is_valid, error_message)."""
         if not api_key:
             return False, "API key cannot be empty"
 
@@ -234,15 +167,7 @@ class InputValidator:
 
     @staticmethod
     def validate_action_data(action_data: Dict[str, Any]) -> Tuple[bool, str]:
-        """
-        Validate complete action data structure
-
-        Args:
-            action_data: Action data dictionary to validate
-
-        Returns:
-            Tuple of (is_valid, error_message)
-        """
+        """Validate complete action data structure. Returns (is_valid, error_message)."""
         # Check required fields
         required_fields = ['title', 'description', 'outcome', 'results']
         for field in required_fields:

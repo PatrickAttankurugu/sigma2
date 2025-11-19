@@ -18,12 +18,7 @@ class DatabaseManager:
     """Manages database connections and sessions"""
 
     def __init__(self, database_url: str = None):
-        """
-        Initialize database manager
-
-        Args:
-            database_url: Database URL (defaults to SQLite in project root)
-        """
+        """Initialize database manager. Defaults to SQLite in project root."""
         if database_url is None:
             # Default to SQLite in project root
             db_path = Path(__file__).parent.parent.parent / "azuma.db"
@@ -62,13 +57,7 @@ class DatabaseManager:
 
     @contextmanager
     def session_scope(self) -> Generator[Session, None, None]:
-        """
-        Provide a transactional scope for database operations
-
-        Usage:
-            with db_manager.session_scope() as session:
-                user = session.query(User).first()
-        """
+        """Provide a transactional scope for database operations."""
         session = self.SessionLocal()
         try:
             yield session
@@ -85,15 +74,7 @@ _db_manager = None
 
 
 def initialize_database(database_url: str = None) -> DatabaseManager:
-    """
-    Initialize the global database manager
-
-    Args:
-        database_url: Database URL (optional)
-
-    Returns:
-        DatabaseManager instance
-    """
+    """Initialize the global database manager and create tables."""
     global _db_manager
     _db_manager = DatabaseManager(database_url)
     _db_manager.create_tables()
@@ -109,14 +90,7 @@ def get_db_manager() -> DatabaseManager:
 
 
 def get_db() -> Generator[Session, None, None]:
-    """
-    Dependency for FastAPI to get database sessions
-
-    Usage in FastAPI:
-        @app.get("/users")
-        def get_users(db: Session = Depends(get_db)):
-            return db.query(User).all()
-    """
+    """Dependency for FastAPI to get database sessions."""
     db_manager = get_db_manager()
     session = db_manager.get_session()
     try:
