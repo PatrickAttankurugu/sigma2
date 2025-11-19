@@ -1,6 +1,6 @@
-# 🤖 Azuma AI - Your Intelligent AI/ML Learning Companion
+# Azuma AI - AI/ML Learning Companion
 
-**Transform your AI/ML learning journey with intelligent, adaptive tutors powered by agentic AI!**
+An intelligent learning platform featuring specialized AI tutors for AI and Machine Learning education.
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)](https://streamlit.io)
@@ -9,41 +9,41 @@
 
 ---
 
-## 🌟 What is Azuma AI?
+## What is Azuma AI?
 
-Azuma AI is an **innovative agentic AI tutor platform** that makes learning AI and Machine Learning engaging, personalized, and fun! Unlike traditional learning platforms, Azuma AI features **specialized AI tutors** with unique personalities that proactively guide you through your learning journey.
+Azuma AI is an agentic AI tutor platform for learning AI and Machine Learning. The platform features specialized AI tutors with unique personalities that guide you through your learning journey.
 
-### 🎯 Key Features
+### Key Features
 
-#### 🧠 **Multiple Specialized AI Tutors**
-- **Prof. Data** 📊 - Your friendly ML fundamentals expert
-- **Neural** 🧠 - Deep learning enthusiast with visual teaching style
-- **Vision** 👁️ - Computer vision specialist
-- **Linguist** 📝 - NLP expert who demystifies transformers
+#### Multiple Specialized AI Tutors
+- **Prof. Data** - ML fundamentals expert
+- **Neural** - Deep learning specialist
+- **Vision** - Computer vision specialist
+- **Linguist** - NLP expert
 
-Each tutor has a unique personality, teaching style, and expertise!
+Each tutor has a unique personality, teaching style, and expertise.
 
-#### 🎓 **Adaptive Learning System**
-- **Personalized Learning Paths** - AI generates custom curricula based on your goals
+#### Adaptive Learning System
+- **Personalized Learning Paths** - Custom curricula based on your goals
 - **Real-time Difficulty Adjustment** - Content adapts to your performance
 - **Knowledge Graph Tracking** - Visualize your learning progress
 - **Spaced Repetition** - Intelligent review recommendations
 
-#### 🎮 **Gamification & Engagement**
+#### Gamification & Engagement
 - **Points & Leveling System** - Earn XP as you learn
 - **Badges & Achievements** - 30+ unique badges to unlock
 - **Daily Challenges** - Keep your learning streak alive
 - **Leaderboards** - Compete with other learners
-- **Progress Visualization** - Beautiful knowledge maps
+- **Progress Visualization** - Knowledge maps
 
-#### 💬 **Interactive Learning**
+#### Interactive Learning
 - **Real-time Chat** - Conversation with AI tutors via WebSocket
 - **Socratic Method** - Tutors ask guiding questions
 - **Code Examples** - Executable Python code snippets
 - **Visual Explanations** - Diagrams and visualizations
 - **Instant Feedback** - Immediate assessment and suggestions
 
-#### 📚 **Comprehensive Curriculum**
+#### Comprehensive Curriculum
 - Python for ML (NumPy, Pandas, Matplotlib)
 - Math Foundations (Linear Algebra, Calculus, Statistics)
 - Machine Learning (Supervised, Unsupervised, Evaluation)
@@ -55,7 +55,7 @@ Each tutor has a unique personality, teaching style, and expertise!
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -92,7 +92,7 @@ Each tutor has a unique personality, teaching style, and expertise!
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ### Tech Stack
 
@@ -125,12 +125,12 @@ azuma/
 
 ---
 
-## 📖 How to Use
+## How to Use
 
 ### 1. Create Your Profile
 
-When you first launch Azuma AI, you'll create a personalized profile:
-- Choose your experience level (Beginner → Expert)
+When you first launch Azuma AI, create a personalized profile:
+- Choose your experience level (Beginner to Expert)
 - Select your learning style (Visual, Hands-on, Theoretical, etc.)
 - Set your learning goals
 - Pick topics of interest
@@ -138,12 +138,12 @@ When you first launch Azuma AI, you'll create a personalized profile:
 ### 2. Choose Your Tutor
 
 Select from 4 specialized AI tutors based on what you want to learn:
-- **ML Fundamentals** → Prof. Data
-- **Deep Learning** → Neural
-- **Computer Vision** → Vision
-- **NLP** → Linguist
+- **ML Fundamentals** - Prof. Data
+- **Deep Learning** - Neural
+- **Computer Vision** - Vision
+- **NLP** - Linguist
 
-### 3. Start Learning!
+### 3. Start Learning
 
 - **Chat Interface**: Ask questions, get explanations, receive code examples
 - **Learning Dashboard**: See recommended topics, daily challenges, progress
@@ -159,31 +159,31 @@ Select from 4 specialized AI tutors based on what you want to learn:
 
 ---
 
-## 🎓 Learning Paths
+## Learning Paths
 
-Azuma AI offers pre-built and AI-generated learning paths:
+Azuma AI offers pre-built and custom learning paths:
 
 ### Beginner Track
-1. Python Basics → NumPy → Pandas
-2. Math Foundations → Statistics
-3. Introduction to ML → Supervised Learning
+1. Python Basics to NumPy to Pandas
+2. Math Foundations to Statistics
+3. Introduction to ML to Supervised Learning
 4. First ML Project
 
 ### Intermediate Track
-1. Neural Networks → Deep Learning
-2. CNNs → Computer Vision
-3. RNNs → NLP Basics
+1. Neural Networks to Deep Learning
+2. CNNs to Computer Vision
+3. RNNs to NLP Basics
 4. Advanced Projects
 
 ### Advanced Track
-1. Transformers → BERT/GPT
-2. Object Detection → Segmentation
+1. Transformers to BERT/GPT
+2. Object Detection to Segmentation
 3. Reinforcement Learning
 4. MLOps & Deployment
 
 ---
 
-## 🏆 Gamification
+## Gamification
 
 ### Levels (1-10)
 - Level 1: AI Novice (0 points)
@@ -207,7 +207,7 @@ Azuma AI offers pre-built and AI-generated learning paths:
 
 ---
 
-## 🔧 Advanced Features
+## Advanced Features
 
 ### FastAPI Backend
 
@@ -235,7 +235,7 @@ The API provides:
 
 ---
 
-## 🎨 Customization
+## Customization
 
 ### Adding Custom Topics
 
@@ -251,7 +251,7 @@ Add badges in `azuma/gamification/achievement_system.py`.
 
 ---
 
-## 📊 Analytics & Insights
+## Analytics & Insights
 
 Azuma AI tracks:
 - Learning velocity (lessons per week)
@@ -263,9 +263,9 @@ Azuma AI tracks:
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-We welcome contributions! Here's how:
+Contributions are welcome! Here's how:
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -275,22 +275,22 @@ We welcome contributions! Here's how:
 
 ---
 
-## 📝 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
-- **PydanticAI** - For the amazing agentic AI framework
-- **Google Gemini** - For powerful LLM capabilities
+- **PydanticAI** - For the agentic AI framework
+- **Google Gemini** - For LLM capabilities
 - **Streamlit** - For rapid UI development
 - **FastAPI** - For high-performance APIs
 
 ---
 
-## 👨‍💻 Author
+## Author
 
 **Patrick Attankurugu**
 - Email: patricka.azuma@gmail.com
@@ -298,7 +298,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 🔮 Future Enhancements
+## Future Enhancements
 
 - [ ] Voice interaction with tutors
 - [ ] Mobile app (React Native)
@@ -311,20 +311,18 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## ⭐ Show Your Support
+## Support
 
-If you find Azuma AI helpful, please:
-- ⭐ Star this repository
-- 🐛 Report bugs
-- 💡 Suggest features
-- 📢 Share with others learning AI/ML
+If you find Azuma AI helpful:
+- Star this repository
+- Report bugs
+- Suggest features
+- Share with others learning AI/ML
 
 ---
 
 <div align="center">
 
-**Made with ❤️ for the AI/ML learning community**
-
-[Get Started](#-quick-start) • [Documentation](#-how-to-use) • [Contribute](#-contributing)
+[Get Started](#quick-start) • [Documentation](#how-to-use) • [Contribute](#contributing)
 
 </div>
