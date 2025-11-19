@@ -133,14 +133,8 @@ class CodePlayground:
         return stdout, stderr, success
 
     def render_playground(self, initial_code: str = "", key: str = "playground"):
-        """
-        Render interactive code playground in Streamlit
-
-        Args:
-            initial_code: Initial code to display
-            key: Unique key for the code editor
-        """
-        st.markdown("### 💻 Interactive Code Playground")
+        """Render interactive code playground in Streamlit."""
+        st.markdown("### Interactive Code Playground")
         st.write("Write and run Python code right here! Available libraries: numpy, pandas, matplotlib, math, random")
 
         # Code editor
@@ -156,10 +150,10 @@ class CodePlayground:
         col1, col2, col3 = st.columns([1, 1, 3])
 
         with col1:
-            run_button = st.button("▶️ Run Code", key=f"run_{key}", type="primary")
+            run_button = st.button("Run Code", key=f"run_{key}", type="primary")
 
         with col2:
-            clear_button = st.button("🗑️ Clear", key=f"clear_{key}")
+            clear_button = st.button("Clear", key=f"clear_{key}")
 
         if clear_button:
             st.rerun()
@@ -175,9 +169,9 @@ class CodePlayground:
             st.markdown("---")
 
             if success:
-                st.success(f"✅ Execution successful ({execution_time:.3f}s)")
+                st.success(f"Execution successful ({execution_time:.3f}s)")
             else:
-                st.error(f"❌ Execution failed ({execution_time:.3f}s)")
+                st.error(f"Execution failed ({execution_time:.3f}s)")
 
             # Show output
             if stdout:
@@ -197,19 +191,12 @@ class CodePlayground:
             st.warning("Please write some code first!")
 
     def create_quiz_playground(self, problem: str, test_cases: list, solution_hint: str = ""):
-        """
-        Create a code playground for quiz problems with automated testing
-
-        Args:
-            problem: Problem description
-            test_cases: List of test cases [{"input": ..., "expected": ...}, ...]
-            solution_hint: Optional hint for the solution
-        """
-        st.markdown("### 🎯 Coding Challenge")
+        """Create a code playground for quiz problems with automated testing."""
+        st.markdown("### Coding Challenge")
         st.write(problem)
 
         if solution_hint:
-            with st.expander("💡 Hint"):
+            with st.expander("Hint"):
                 st.write(solution_hint)
 
         # Code editor
@@ -255,9 +242,9 @@ class CodePlayground:
 
             for result in results:
                 if result["passed"]:
-                    st.success(f"✅ Test {result['test']}: Passed")
+                    st.success(f"Test {result['test']}: Passed")
                 else:
-                    st.error(f"❌ Test {result['test']}: Failed")
+                    st.error(f"Test {result['test']}: Failed")
                     st.write(f"Expected: `{result['expected']}`")
                     st.write(f"Got: `{result['got']}`")
                     if result.get("error"):
@@ -265,7 +252,7 @@ class CodePlayground:
 
             if all_passed:
                 st.balloons()
-                st.success("🎉 All tests passed! Great job!")
+                st.success("All tests passed! Great job!")
                 return True
             else:
                 st.info("Keep trying! Debug your code and run tests again.")

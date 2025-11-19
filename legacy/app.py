@@ -35,7 +35,6 @@ app_logger, ai_logger, bmc_logger, metrics_logger, quality_logger = setup_loggin
 
 st.set_page_config(
     page_title="SIGMA Agentic AI Co-pilot",
-    page_icon="🤖",
     layout="wide",
     initial_sidebar_state="collapsed"
 )

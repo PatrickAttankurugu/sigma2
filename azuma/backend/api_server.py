@@ -72,31 +72,31 @@ state = AppState()
 async def lifespan(app: FastAPI):
     """Startup and shutdown events"""
     # Startup
-    logger.info("🚀 Starting Azuma AI backend v2.0...")
+    logger.info("Starting Azuma AI backend v2.0...")
 
     try:
         # Initialize database
         state.db_manager = initialize_database()
-        logger.info("✅ Database initialized")
+        logger.info("Database initialized")
 
         # Initialize adaptive engine
         api_key = os.getenv("GOOGLE_API_KEY")
         if api_key:
             state.adaptive_engine = AdaptiveLearningEngine(api_key)
-            logger.info("✅ Adaptive learning engine initialized")
+            logger.info("Adaptive learning engine initialized")
         else:
-            logger.warning("⚠️  GOOGLE_API_KEY not set - some features will be limited")
+            logger.warning("GOOGLE_API_KEY not set - some features will be limited")
 
-        logger.info("✅ Azuma AI backend started successfully!")
+        logger.info("Azuma AI backend started successfully!")
 
     except Exception as e:
-        logger.error(f"❌ Startup error: {e}")
+        logger.error(f"Startup error: {e}")
         raise
 
     yield
 
     # Shutdown
-    logger.info("👋 Shutting down Azuma AI backend...")
+    logger.info("Shutting down Azuma AI backend...")
     # Close any open connections
     for user_id in list(state.active_connections.keys()):
         try:
